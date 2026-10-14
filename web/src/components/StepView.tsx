@@ -9,7 +9,7 @@ import type { Cursor, EngineError, PassKind, ScalarView, Stats, Step, TangentSee
 import type { Preset } from '../graph/presets.ts';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import { divergingScale, drawTensor, fmt, maxAbs } from '../views/draw.ts';
-import { highlightAt, localDerivative, localDerivativeValue } from '../views/graph.ts';
+import { gradientStops, highlightAt, localDerivative, localDerivativeValue } from '../views/graph.ts';
 import type { UrlState } from '../views/graph.ts';
 import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
@@ -98,6 +98,9 @@ export function StepView(props: {
   const schedule: Step[] = active?.info.schedules[pass] ?? [];
   const shapes = useMemo(() => Object.fromEntries((active?.info.nodes ?? []).map((n) => [n.id, n.shape])), [active]);
   const byId = useMemo(() => new Map((spec?.nodes ?? []).map((n) => [n.id, n])), [spec]);
+  const stops = useMemo(() => (spec && active
+    ? gradientStops(spec, Object.fromEntries(active.info.nodes.map((n) => [n.id, n.requiresGrad])))
+    : undefined), [spec, active]);
   const gradWhich = pass === 'forwardMode' ? 'tangent' : 'grad';
 
   // default forward-mode direction: the first element of the first leaf
@@ -256,7 +259,7 @@ export function StepView(props: {
         <div className="graph-wrap">
           <GraphCanvas spec={spec} shapes={shapes} highlight={highlight} values={values} grads={grads}
             gradLabel={pass === 'forwardMode' ? 'ṫ' : '∂'} selected={selected} onSelect={setSelected}
-            faultNode={cursor.fault?.nodeId} />
+            faultNode={cursor.fault?.nodeId} stops={stops} />
         </div>
         <aside className="inspector">
           <StepExplain step={step} spec={spec} byId={byId} values={values} grads={grads} schedule={schedule}

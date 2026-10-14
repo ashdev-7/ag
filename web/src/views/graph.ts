@@ -33,6 +33,18 @@ export function layoutGraph(spec: GraphSpec, size: (n: NodeSpec) => { width: num
   return { nodes, edges };
 }
 
+/**
+ * Nodes where a gradient stops: they need none themselves, but an input does
+ * (a detach, or a no_grad node). Read from the engine's requiresGrad flags, so
+ * it works the same for the tensor graph and the single-number graph.
+ */
+export function gradientStops(spec: GraphSpec, requiresGrad: Record<string, boolean>): Set<string> {
+  const stops = new Set<string>();
+  for (const n of spec.nodes)
+    if (!requiresGrad[n.id] && n.inputs.some((i) => requiresGrad[i])) stops.add(n.id);
+  return stops;
+}
+
 // ── highlighting ────────────────────────────────────────────────────────────
 
 export interface Highlight {
@@ -100,6 +112,7 @@ export function localDerivative(op: OpName, slot: number, ins: string[], scalar 
     case 'softmax': return 'out ⊙ (grad − Σ grad ⊙ out)';
     case 'mse_loss': return slot === 0 ? `2 (${a} − ${b}) / N` : `−2 (${a} − ${b}) / N`;
     case 'softmax_cross_entropy': return slot === 0 ? `(softmax(${a}) − ${b}) / rows` : `(logsumexp(${a}) − ${a}) / rows`;
+    case 'detach': return '0: the gradient stops here';
     default: return '';
   }
 }
@@ -134,7 +147,7 @@ export const OP_SYMBOL: Partial<Record<OpName, string>> = {
   add: '+', sub: '−', mul: '×', div: '÷', neg: '−x', pow: 'xⁿ', exp: 'exp', log: 'log', matmul: '@',
   sum: 'Σ', mean: 'mean', reshape: 'reshape', transpose: 'ᵀ', relu: 'relu', leaky_relu: 'lrelu', tanh: 'tanh',
   sigmoid: 'σ', softmax: 'softmax', mse_loss: 'mse', softmax_cross_entropy: 'cross-entropy',
-  input: 'input', param: 'param', const: 'const',
+  input: 'input', param: 'param', const: 'const', detach: 'detach',
 };
 
 // ── URL ─────────────────────────────────────────────────────────────────────

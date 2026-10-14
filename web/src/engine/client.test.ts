@@ -21,7 +21,7 @@ class FakeWorker {
     const mode = this.mode();
     if (msg.type === 'init') {
       if (mode === 'loadFails') return reply({ id: msg.id, ok: false, error: { code: 'WasmLoadFailed', message: 'no wasm' } });
-      return reply({ id: msg.id, ok: true, result: { abi: 1, ops: [] } });
+      return reply({ id: msg.id, ok: true, result: { abi: 2, ops: [] } });
     }
     if (mode === 'hang') return;
     if (mode === 'fatal') return reply({ type: 'fatal', error: { code: 'WorkerCrashed', message: 'trap' } });

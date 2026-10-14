@@ -44,7 +44,8 @@ struct NodePlan {
     uint32_t gradOff    = kNoBuffer;   // kNoBuffer if !requiresGrad
     uint32_t tangentOff = kNoBuffer;   // kNoBuffer unless compiled with tangents
     int32_t  paramIndex = -1;          // index into Program::params, or -1
-    bool     requiresGrad = false;     // true if any path leads to a Param
+    bool     requiresGrad = false;     // true if a path from a Param reaches it without
+                                       // passing a Detach or a noGrad node
     uint16_t numConsumers = 0;         // how many grads it will accumulate
     int32_t  lastUse = -1;             // last Reverse-schedule step reading its value
 };

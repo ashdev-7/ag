@@ -329,6 +329,13 @@ static void reshapeJ(const JvpArgs& a) {
     for (int64_t i = 0; i < n; ++i) a.tout.data[i] = a.tin[0].data ? a.tin[0].data[i] : 0.0f;
 }
 
+// detach passes the value and stops the gradient. compile() marks its output
+// as not needing a gradient, so neither derivative kernel is ever scheduled;
+// they are written out so that calling one would still be correct
+static void detachF(const ForwardArgs& a) { copy_n(a.in[0].data, numel(a.out.shape), a.out.data); }
+static void detachV(const VjpArgs&) {}
+static void detachJ(const JvpArgs& a) { fill_n(a.tout.data, numel(a.out.shape), 0.0f); }
+
 static void transposeF(const ForwardArgs& a) {
     int64_t r = a.in[0].shape.dim[0], c = a.in[0].shape.dim[1];
     for (int64_t i = 0; i < r; ++i)
@@ -522,6 +529,8 @@ static const OpInfo kOps[] = {
 
     AG_OP(MseLoss,             "mse_loss",              "mse", Loss, 2, 2, kSavesInputs, inferLoss,         mse, scalarizeMse),
     AG_OP(SoftmaxCrossEntropy, "softmax_cross_entropy", "ce",  Loss, 2, 2, kSavesInputs, inferCrossEntropy, ce,  scalarizeCrossEntropy),
+
+    AG_OP(Detach, "detach", "detach", ShapeOp, 1, 1, kSavesNothing, inferSame, detach, scalarizeDetach),
 };
 
 #undef AG_OP

@@ -149,6 +149,7 @@ static void dumpCase(const string& name, const Session& s) {
         g_dump << "],\"shape\":[";
         for (int k = 0; k < p.nodes[i].shape.rank; ++k) g_dump << (k ? "," : "") << p.nodes[i].shape.dim[k];
         g_dump << "],\"axis\":" << n.attrs.axis << ",\"keepDim\":" << (n.attrs.keepDim ? "true" : "false")
+               << ",\"noGrad\":" << (n.attrs.noGrad ? "true" : "false")
                << ",\"scalar\":" << n.attrs.scalar << ",\"value\":[";
         vector<float> v = readAll(s, NodeId(i), Which::Value);
         for (size_t k = 0; k < v.size(); ++k) g_dump << (k ? "," : "") << v[k];
@@ -692,6 +693,123 @@ static void testScalarize() {
     check(sessionScalarize(*s, &sc, &map).code == Code::LimitExceeded, "a large graph is refused with LimitExceeded");
 }
 
+// ── 6b. detach and no_grad ───────────────────────────────────────────────────
+// finite differences cannot check these: stopping a gradient is a deliberate
+// difference from the true derivative. each case states the gradient that
+// should come out instead, and is also compared with PyTorch through the dump
+
+// reverse mode, forward mode and the scalar view must all give `want`
+static void checkStopped(const string& name, Builder& b, NodeId w, const function<float(float)>& want) {
+    unique_ptr<Session> s;
+    Status st = sessionCreate(b.g, noData(5), &s);
+    check(st.ok(), name + ": compiles " + st.message);
+    if (!st.ok()) return;
+    sessionBegin(s.get(), PassKind::Reverse);
+    sessionAdvance(s.get(), 1 << 20, nullptr);
+    dumpCase(name, *s);
+    vector<float> v = readAll(*s, w, Which::Value), g = readAll(*s, w, Which::Grad);
+    bool rev = !g.empty();
+    for (size_t e = 0; e < g.size(); ++e) rev = rev && near(g[e], want(v[e]), 1e-6);
+    check(rev, name + ": reverse mode gives the stopped gradient");
+
+    bool fwd = true;
+    NodeId loss = s->trainProg.graph.loss;
+    for (int32_t e = 0; e < int32_t(g.size()); ++e) {
+        sessionBegin(s.get(), PassKind::ForwardMode, {w, e});
+        sessionAdvance(s.get(), 1 << 20, nullptr);
+        fwd = fwd && near(readAll(*s, loss, Which::Tangent)[0], g[e], 1e-6);
+    }
+    check(fwd, name + ": forward mode stops at the same place");
+
+    unique_ptr<Session> sc;
+    ScalarMap map;
+    st = sessionScalarize(*s, &sc, &map);
+    bool same = st.ok();
+    if (same) {
+        sessionBegin(sc.get(), PassKind::Reverse);
+        sessionAdvance(sc.get(), 1 << 20, nullptr);
+        for (size_t e = 0; e < g.size(); ++e) same = same && near(readAll(*sc, map.elems[w][e], Which::Grad)[0], g[e], 1e-5);
+    }
+    check(same, name + ": the scalar view stops it too");
+}
+
+static void testGradControl() {
+    cout << "\n[detach and no_grad]\n";
+    {
+        // sum(detach(w) * w): only the second factor passes a gradient, so
+        // dloss/dw = w rather than 2w
+        Builder b;
+        NodeId w = b.param({2, 3}, "w");
+        NodeId d = b.op(Op::Detach, {w}, "d");
+        setLoss(&b.g, b.op(Op::Sum, {b.op(Op::Mul, {d, w})}, "loss"));
+        Program p;
+        compile(b.g, {}, &p);
+        check(!p.nodes[d].requiresGrad && p.nodes[d].gradOff == kNoBuffer, "detach: its output needs no gradient");
+        check(p.nodes[w].numConsumers == 1, "detach: w receives one contribution, not two");
+        checkStopped("detach", b, w, [](float x) { return x; });
+    }
+    {
+        // sum(no_grad(tanh(w)) * w + w): dloss/dw = tanh(w) + 1, without the
+        // (1 - tanh²) w term the tanh would have added
+        Builder b;
+        NodeId w = b.param({4}, "w");
+        Attrs ng;
+        ng.noGrad = true;
+        NodeId t = b.add(Op::Tanh, {w}, ng, "t");
+        setLoss(&b.g, b.op(Op::Sum, {b.op(Op::Add, {b.op(Op::Mul, {t, w}), w})}, "loss"));
+        checkStopped("no_grad", b, w, [](float x) { return std::tanh(x) + 1.0f; });
+    }
+    {
+        // a parameter the loss sees only through detach is not trained: no
+        // gradient buffer, no update step, and its value stays put
+        Builder b;
+        NodeId w = b.param({3}, "w"), v = b.param({3}, "v");
+        NodeId loss = b.op(Op::Sum, {b.op(Op::Mul, {b.op(Op::Detach, {v}), w})}, "loss");
+        setLoss(&b.g, loss);
+        unique_ptr<Session> s;
+        SessionConfig c = noData(2);
+        c.optim.kind = OptimKind::Adam;
+        check(sessionCreate(b.g, c, &s).ok(), "detached parameter: compiles");
+        const Program& p = s->trainProg;
+        bool updatesV = false;
+        for (const Step& st : schedule(p, PassKind::Train)) updatesV = updatesV || (st.kind == StepKind::Update && st.node == v);
+        check(p.nodes[v].gradOff == kNoBuffer && !updatesV, "detached parameter: no gradient buffer and no update step");
+        sessionBegin(s.get(), PassKind::Forward);
+        sessionAdvance(s.get(), 1 << 20, nullptr);
+        vector<float> v0 = readAll(*s, v, Which::Value), w0 = readAll(*s, w, Which::Value);
+        sessionTrain(s.get(), 10, nullptr);
+        sessionBegin(s.get(), PassKind::Forward);
+        sessionAdvance(s.get(), 1 << 20, nullptr);
+        check(readAll(*s, v, Which::Value) == v0 && readAll(*s, w, Which::Value) != w0,
+              "detached parameter: 10 Adam steps leave it unchanged and train the other");
+    }
+    {
+        // the whole loss under no_grad: nothing to differentiate, and a
+        // training step is a harmless no-op instead of a crash
+        Builder b;
+        NodeId w = b.param({3}, "w");
+        Attrs ng;
+        ng.noGrad = true;
+        NodeId loss = b.add(Op::Sum, {w}, ng, "loss");
+        setLoss(&b.g, loss);
+        unique_ptr<Session> s;
+        check(sessionCreate(b.g, noData(), &s).ok(), "no_grad loss: compiles");
+        size_t updates = 0;
+        for (const Step& st : schedule(s->trainProg, PassKind::Train)) updates += st.kind == StepKind::Update;
+        check(updates == 0 && s->trainProg.nodes[w].numConsumers == 0, "no_grad loss: no updates, no contributions");
+        check(sessionTrain(s.get(), 3, nullptr).ok(), "no_grad loss: training runs and changes nothing");
+    }
+    {
+        Builder b;
+        Attrs a = Builder::shaped({3});
+        a.noGrad = true;
+        b.add(Op::Param, {}, a, "w");
+        Program p;
+        Status st = compile(b.g, {}, &p);
+        check(st.code == Code::InvalidGraph && st.node == 0, "no_grad on a parameter is refused at that node");
+    }
+}
+
 // ── 7. the C API ─────────────────────────────────────────────────────────────
 
 static void testCapi() {
@@ -809,6 +927,7 @@ int main(int argc, char** argv) {
     testFaults();
     testRace();
     testScalarize();
+    testGradControl();
     testCapi();
     dumpOptimizers();
     g_dump << "],\"moons\":[";

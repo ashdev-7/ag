@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define AG_ABI_VERSION 1u
+#define AG_ABI_VERSION 2u
 #define AG_MAX_RANK 4
 #define AG_HIST_BINS 32
 
@@ -32,6 +32,7 @@ typedef struct {
     int32_t  init;
     float    init_scale;
     int32_t  requires_grad;
+    int32_t  no_grad;
 } ag_attrs;
 
 typedef struct { int32_t kind; int32_t slot; int32_t node; } ag_step;

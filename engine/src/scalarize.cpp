@@ -28,6 +28,8 @@ static Status emit(const ScalarizeArgs& a, Op op, initializer_list<NodeId> in, f
                                               " nodes; this graph needs more. use a smaller batch or layer");
     Attrs attrs;
     attrs.scalar = scalar;
+    // every computed piece of a no_grad node is no_grad; constants never need it
+    attrs.noGrad = a.node.attrs.noGrad && opInfo(op).category != Category::Source;
     return addNode(a.out, op, span<const NodeId>(in.begin(), in.size()), attrs, name, a.node.name, out);
 }
 
@@ -106,6 +108,14 @@ Status scalarizeReduce(const ScalarizeArgs& a) {
 
 Status scalarizeReshape(const ScalarizeArgs& a) {
     *a.outElems = a.in[0];
+    return {};
+}
+
+// one detach per element, so the stop is visible in the scalar view too
+Status scalarizeDetach(const ScalarizeArgs& a) {
+    int64_t n = numel(a.outShape);
+    a.outElems->resize(n);
+    for (int64_t i = 0; i < n; ++i) AG_TRY(emit(a, Op::Detach, {a.in[0][i]}, 0, outName(a, i), &(*a.outElems)[i]));
     return {};
 }
 

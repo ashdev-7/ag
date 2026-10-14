@@ -106,6 +106,22 @@ const expression: Preset = {
   layers: [],
 };
 
+const stopGrad: Preset = {
+  id: 'detach',
+  title: 'd = detach(a)·b + a',
+  blurb: 'The same expression with one use of a detached. Its value still flows forward; its gradient does not flow back.',
+  mode: 'step',
+  spec: spec([
+    node('a', 'input', [], { shape: [], init: 'constant', initScale: 2, requiresGrad: true }),
+    node('b', 'input', [], { shape: [], init: 'constant', initScale: 3, requiresGrad: true }),
+    node('sa', 'detach', ['a'], { name: 'detach(a)' }),
+    node('c', 'mul', ['sa', 'b']),
+    node('d', 'add', ['c', 'a']),
+  ], 'd'),
+  config: { batchSize: 1, evalBatchSize: 1, seed: 1, optim: { kind: 'sgd', lr: 0.1 }, data: noData },
+  layers: [],
+};
+
 const neuron: Preset = {
   id: 'neuron',
   title: 'One neuron',
@@ -242,7 +258,7 @@ const bowl = racePreset('bowl', 'Narrow bowl',
   [{ kind: 'sgd', lr: 0.09 }, { kind: 'momentum', lr: 0.02, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.02, beta2: 0.99 }, { kind: 'adam', lr: 0.05 }]);
 
 export const PRESETS: Preset[] = [
-  expression, neuron, broadcast, mlpStep,
+  expression, stopGrad, neuron, broadcast, mlpStep,
   moons, circles, spirals, xor, vanishing, deadRelu,
   rosenbrock, saddle, bowl,
 ];

@@ -48,20 +48,23 @@ Status compile(const Graph& g, const CompileOptions& opts, Program* out) {
     if (g.loss != kNoNode && numel(p.nodes[g.loss].shape) != 1)
         return makeError(Code::ShapeMismatch, "the loss must be a single number, got " + toString(p.nodes[g.loss].shape), g.loss);
 
-    // 2. requiresGrad flows forward from parameters and marked inputs
+    // 2. requiresGrad flows forward from parameters and marked inputs, and
+    //    stops at Detach and at noGrad nodes
     for (NodeId id = 0; id < n; ++id) {
         const Node& node = p.graph.nodes[id];
         bool rg = node.op == Op::Param || (node.op == Op::Input && node.attrs.requiresGrad);
         for (int32_t i = 0; i < node.numInputs; ++i) rg = rg || p.nodes[node.inputs[i]].requiresGrad;
-        p.nodes[id].requiresGrad = rg;
+        p.nodes[id].requiresGrad = rg && node.op != Op::Detach && !node.attrs.noGrad;
     }
 
-    // 3. which nodes the loss depends on, and how many gradients each receives
+    // 3. which nodes the loss's gradient reaches, and how many contributions
+    //    each receives. it travels only through nodes that require a gradient,
+    //    so a parameter seen by the loss only through a Detach gets no update
     vector<bool> reaches(n, false);
     if (g.loss != kNoNode) {
         reaches[g.loss] = true;
         for (NodeId id = g.loss; id >= 0; --id) {
-            if (!reaches[id]) continue;
+            if (!reaches[id] || !p.nodes[id].requiresGrad) continue;
             const Node& node = p.graph.nodes[id];
             for (int32_t i = 0; i < node.numInputs; ++i) {
                 reaches[node.inputs[i]] = true;

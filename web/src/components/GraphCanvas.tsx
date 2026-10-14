@@ -23,6 +23,8 @@ interface OpData extends Record<string, unknown> {
   selected: boolean;
   fault: boolean;
   compact: boolean;
+  /** The gradient stops here (detach or no_grad). */
+  stop: boolean;
 }
 
 function summary(s: Stats | undefined, shape: number[] | undefined): string {
@@ -48,7 +50,9 @@ const OpNode = memo(function OpNode({ data }: NodeProps<Node<OpData>>) {
       </div>
       {!data.compact && shape && shape.length > 0 && <div className="gnode-shape">[{shape.join(', ')}]</div>}
       <div className="gnode-value">{data.done ? summary(data.value, shape) : ' '}</div>
-      <div className="gnode-grad">{data.gradDone && data.grad ? `${data.gradLabel} ${summary(data.grad, shape)}` : ' '}</div>
+      {data.stop
+        ? <div className="gnode-grad gnode-stop" title="No gradient flows back through this node">no {data.gradLabel}</div>
+        : <div className="gnode-grad">{data.gradDone && data.grad ? `${data.gradLabel} ${summary(data.grad, shape)}` : ' '}</div>}
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   );
@@ -68,6 +72,8 @@ export interface GraphCanvasProps {
   onSelect: (id?: string) => void;
   /** Edge thickness by the gradient norm of the receiving node (training view). */
   edgeWeights?: boolean;
+  /** Nodes that stop the gradient; edges into them are dashed. */
+  stops?: Set<string>;
 }
 
 function Inner(props: GraphCanvasProps) {
@@ -99,6 +105,7 @@ function Inner(props: GraphCanvasProps) {
       selected: props.selected === n.id,
       fault: props.faultNode === n.id,
       compact,
+      stop: !!props.stops?.has(n.id),
     },
   }));
 
@@ -108,10 +115,11 @@ function Inner(props: GraphCanvasProps) {
     const active = highlight.activeEdge && highlight.activeEdge.from === e.from && highlight.activeEdge.to === e.to &&
       highlight.activeEdge.slot === e.slot;
     const w = props.edgeWeights && maxNorm > 0 ? 1 + 5 * Math.sqrt((props.grads[e.from]?.l2 ?? 0) / maxNorm) : 1.5;
+    const stopped = !!props.stops?.has(e.to);
     return {
       id: e.id, source: e.from, target: e.to,
       animated: !!active,
-      className: active ? 'gedge-active' : '',
+      className: active ? 'gedge-active' : stopped ? 'gedge-stopped' : '',
       style: { strokeWidth: active ? 3 : w },
     };
   });

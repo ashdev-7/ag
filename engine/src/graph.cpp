@@ -87,6 +87,8 @@ Status validate(const Graph& g, const Limits& limits) {
         // somewhere else; say where it comes from instead
         if (!std::isfinite(node.attrs.scalar) || !std::isfinite(node.attrs.initScale))
             return makeError(Code::InvalidGraph, "attributes must be finite numbers", id);
+        if (node.attrs.noGrad && opInfo(node.op).category == Category::Source)
+            return makeError(Code::InvalidGraph, "no_grad applies to computed nodes, not to inputs or parameters", id);
         if (node.attrs.role != Role::None && node.op != Op::Input)
             return makeError(Code::InvalidGraph, "only an input can carry a data role", id);
         features += node.attrs.role == Role::Features;
@@ -113,6 +115,7 @@ string dump(const Graph& g) {
         if (opInfo(node.op).category == Category::Source || node.op == Op::Reshape) s += " shape=" + toString(node.attrs.shape);
         if (node.attrs.axis != kAllAxes) s += " axis=" + to_string(node.attrs.axis);
         if (node.attrs.keepDim) s += " keepdim";
+        if (node.attrs.noGrad) s += " no_grad";
         if (node.attrs.scalar != 0.0f) s += " scalar=" + to_string(node.attrs.scalar);
         if (!node.name.empty()) s += "  # " + node.name;
         s += "\n";

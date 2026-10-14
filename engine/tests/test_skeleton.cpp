@@ -147,7 +147,7 @@ static void testCapi() {
           "a bogus handle reports NotFound with a message");
 
     // layout the web client depends on
-    check(sizeof(ag_shape) == 20 && sizeof(ag_step) == 12 && sizeof(ag_attrs) == 48,
+    check(sizeof(ag_shape) == 20 && sizeof(ag_step) == 12 && sizeof(ag_attrs) == 52,
           "struct sizes match the documented ABI");
     // offsets the web bridge (web/src/engine/bridge.ts) writes and reads
     check(sizeof(ag_stats) == 164 && sizeof(ag_optim_config) == 56 && sizeof(ag_session_config) == 92 &&

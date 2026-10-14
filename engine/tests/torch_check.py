@@ -24,6 +24,8 @@ def build(nodes):
     for n in nodes:
         op, ins = n["op"], [out[i] for i in n["inputs"]]
         shape = n["shape"]
+        if n.get("noGrad"):
+            ins = [x.detach() for x in ins]  # what torch.no_grad() does to this node's output
         if op in ("input", "param", "const"):
             t = torch.tensor(n["value"], dtype=torch.float32).reshape(shape)
             t.requires_grad_(len(n["grad"]) > 0)
@@ -50,6 +52,8 @@ def build(nodes):
             t = ins[0].reshape(shape)
         elif op == "transpose":
             t = ins[0].t()
+        elif op == "detach":
+            t = ins[0].detach()
         elif op == "softmax":
             t = torch.softmax(ins[0], dim=-1 if n["axis"] == ALL_AXES else n["axis"])
         elif op == "mse_loss":

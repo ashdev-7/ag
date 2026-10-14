@@ -54,6 +54,11 @@ try {
       await page.getByTitle('To the end').click();
       await page.locator('.react-flow__node').first().click();
       await sleep(300);
+      if (p.id === 'detach') {
+        check(await page.locator('.react-flow__edge.gedge-stopped').count() === 1, 'detach: the edge into detach(a) is drawn as stopped');
+        check((await page.locator('.react-flow__node', { hasText: 'a' }).first().textContent())?.includes('∂ 1.00') ?? false,
+          'detach: a gets 1, not 4');
+      }
       await page.screenshot({ path: join(shots, `${p.id}-tensor.png`) });
       await page.getByText('Reverse vs forward mode').click();
       await page.waitForSelector('.modes table', { timeout: 20000 });

@@ -11,7 +11,8 @@ export type OpName =
   | 'add' | 'sub' | 'mul' | 'div' | 'neg' | 'pow' | 'exp' | 'log'
   | 'matmul' | 'sum' | 'mean' | 'reshape' | 'transpose'
   | 'relu' | 'leaky_relu' | 'tanh' | 'sigmoid' | 'softmax'
-  | 'mse_loss' | 'softmax_cross_entropy';
+  | 'mse_loss' | 'softmax_cross_entropy'
+  | 'detach';
 
 const ARITY: Record<OpName, [number, number]> = {
   input: [0, 0], param: [0, 0], const: [0, 0],
@@ -19,7 +20,10 @@ const ARITY: Record<OpName, [number, number]> = {
   matmul: [2, 2], sum: [1, 1], mean: [1, 1], reshape: [1, 1], transpose: [1, 1],
   relu: [1, 1], leaky_relu: [1, 1], tanh: [1, 1], sigmoid: [1, 1], softmax: [1, 1],
   mse_loss: [2, 2], softmax_cross_entropy: [2, 2],
+  detach: [1, 1],
 };
+
+const SOURCES: readonly OpName[] = ['input', 'param', 'const'];
 
 /** In engine order (enum Init in engine/include/ag/graph.hpp). */
 export const INIT_NAMES = [
@@ -49,6 +53,8 @@ export interface NodeSpec {
   init?: InitName;
   initScale?: number;
   requiresGrad?: boolean;
+  /** Computed as if under torch.no_grad(): no gradient flows back through it. Not for sources. */
+  noGrad?: boolean;
 }
 
 export interface GraphSpec {
@@ -121,6 +127,10 @@ export function validateSpec(spec: unknown): SpecIssue[] {
     }
     if (raw.init !== undefined && !(INIT_NAMES as readonly unknown[]).includes(raw.init))
       issues.push({ code: 'bad-field', message: `unknown init "${String(raw.init)}"`, nodeId: id });
+    for (const f of ['keepDim', 'requiresGrad', 'noGrad'] as const)
+      if (raw[f] !== undefined && typeof raw[f] !== 'boolean') issues.push({ code: 'bad-field', message: `${f} must be true or false`, nodeId: id });
+    if (raw.noGrad === true && SOURCES.includes(op))
+      issues.push({ code: 'bad-field', message: 'no_grad applies to computed nodes, not to inputs or parameters', nodeId: id });
     for (const f of ['scalar', 'initScale'] as const)
       if (raw[f] !== undefined && !Number.isFinite(raw[f])) issues.push({ code: 'bad-field', message: `${f} must be a number`, nodeId: id });
   }

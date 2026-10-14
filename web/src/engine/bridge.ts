@@ -13,7 +13,7 @@ import type {
   SessionConfig, SessionInfo, Stats, Step, TangentSeed, TrainResult, Which,
 } from './protocol.ts';
 
-export const ABI_VERSION = 1;
+export const ABI_VERSION = 2;
 const ALL_AXES = -128;
 const BATCH = -1;
 
@@ -118,7 +118,7 @@ function lastError(e: Engine, status: number, ids?: readonly string[]): EngineEr
 const OPTIM_KINDS: OptimConfig['kind'][] = ['sgd', 'momentum', 'nesterov', 'rmsprop', 'adam', 'adamw'];
 const DATASETS = ['moons', 'circles', 'spirals', 'xor', 'gaussians', 'sine1d', 'none'];
 
-/** ag_attrs, 48 bytes. */
+/** ag_attrs, 52 bytes. */
 function writeAttrs(m: AgModule, p: number, n: NodeSpec) {
   const shape = n.shape ?? [];
   i32(m, p, shape.length);
@@ -130,6 +130,7 @@ function writeAttrs(m: AgModule, p: number, n: NodeSpec) {
   i32(m, p + 36, Math.max(0, INIT_NAMES.indexOf(n.init ?? 'zeros')));
   f32(m, p + 40, n.initScale ?? 1);
   i32(m, p + 44, n.requiresGrad ? 1 : 0);
+  i32(m, p + 48, n.noGrad ? 1 : 0);
 }
 
 /** ag_optim_config, 56 bytes. */

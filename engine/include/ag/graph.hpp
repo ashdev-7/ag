@@ -31,6 +31,8 @@ enum class Op : uint8_t {
     Relu, LeakyRelu, Tanh, Sigmoid, Softmax,
     // losses, always scalar output
     MseLoss, SoftmaxCrossEntropy,
+    // gradient control: the value passes through, the gradient does not
+    Detach,
 
     Count_
 };
@@ -58,6 +60,8 @@ struct Attrs {
     Init    init         = Init::Zeros;
     float   initScale    = 1.0f;     // Uniform: half-width. Normal: std. Constant: value
     bool    requiresGrad = false;    // Input only; Param is always true
+    bool    noGrad       = false;    // any op but a source: computed as if under
+                                     // torch.no_grad(), so its output needs no gradient
 };
 
 struct Node {

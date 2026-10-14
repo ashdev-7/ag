@@ -214,6 +214,7 @@ ag_status ag_graph_add_node(ag_handle h, int32_t op, const int32_t* inputs, int3
         a.init = static_cast<Init>(attrs->init);
         a.initScale = attrs->init_scale;
         a.requiresGrad = attrs->requires_grad != 0;
+        a.noGrad = attrs->no_grad != 0;
     }
     NodeId id;
     Status s = addNode(g, static_cast<Op>(op), span<const NodeId>(inputs, size_t(n_inputs)), a, name ? name : "",

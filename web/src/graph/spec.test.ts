@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { decodeSpec, encodeSpec, toBuildPlan, validateSpec } from './spec.ts';
 import type { GraphSpec, OpName } from './spec.ts';
 import { PRESETS } from './presets.ts';
-import { fromUrlHash, highlightAt, toUrlHash } from '../views/graph.ts';
+import { fromUrlHash, gradientStops, highlightAt, toUrlHash } from '../views/graph.ts';
 
 const ops = new Map<OpName, number>(['input', 'param', 'const', 'add', 'sub', 'mul', 'div', 'neg', 'pow', 'exp', 'log', 'matmul',
   'sum', 'mean', 'reshape', 'transpose', 'relu', 'leaky_relu', 'tanh', 'sigmoid', 'softmax', 'mse_loss',
-  'softmax_cross_entropy'].map((n, i) => [n as OpName, i]));
+  'softmax_cross_entropy', 'detach'].map((n, i) => [n as OpName, i]));
 
 const example: GraphSpec = {
   version: 1,
@@ -38,6 +38,13 @@ describe('validateSpec', () => {
     expect(validateSpec(bad)).toEqual([expect.objectContaining({ nodeId: 'e', code: 'bad-field' })]);
     const missing = { ...example, nodes: [...example.nodes, { id: 'e', op: 'neg', inputs: ['zz'] }] };
     expect(validateSpec(missing)[0]).toMatchObject({ code: 'missing-input', nodeId: 'e' });
+  });
+
+  it('checks no_grad: a boolean, and only on computed nodes', () => {
+    const on = (id: string, noGrad: unknown) => ({ ...example, nodes: example.nodes.map((n) => (n.id === id ? { ...n, noGrad } : n)) });
+    expect(validateSpec(on('c', true))).toEqual([]);
+    expect(validateSpec(on('a', true))).toEqual([expect.objectContaining({ nodeId: 'a', code: 'bad-field' })]);
+    expect(validateSpec(on('c', 'yes'))).toEqual([expect.objectContaining({ nodeId: 'c', code: 'bad-field' })]);
   });
 
   it('finds a cycle', () => {
@@ -85,5 +92,16 @@ describe('highlightAt', () => {
     expect(h.activeEdge).toEqual({ from: 'a', to: 'd', slot: 1 });
     expect([...h.gradDone].sort()).toEqual(['a', 'd']);
     expect(highlightAt([...schedule], 0, example).valueDone.size).toBe(0);
+  });
+});
+
+describe('gradientStops', () => {
+  it('marks a node that needs no gradient but has an input that does', () => {
+    const spec = PRESETS.find((p) => p.id === 'detach')!.spec;
+    // what the engine reports for this preset: detach(a) needs no gradient
+    const rg = { a: true, b: true, sa: false, c: true, d: true };
+    expect([...gradientStops(spec, rg)]).toEqual(['sa']);
+    // plain constants feeding plain constants stop nothing
+    expect(gradientStops(spec, {}).size).toBe(0);
   });
 });
