@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: native tests
+        run: make -C engine test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: compare every op and optimizer with PyTorch
+        run: |
+          pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+          python engine/tests/torch_check.py engine/build/cases.json
+      - uses: mymindstorm/setup-emsdk@v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - name: wasm build agrees with native
+        run: |
+          make -C engine wasm
+          node engine/tests/wasm_moons.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-wasm
+          path: web/public/engine
+
+  web:
+    needs: engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine-wasm
+          path: web/public/engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: browser smoke test
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/smoke.ts smoke-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-shots
+          path: web/smoke-shots

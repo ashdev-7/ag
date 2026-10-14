@@ -1,0 +1,48 @@
+# Builds the engine and the site and publishes it to GitHub Pages.
+# Run by hand (Actions -> pages -> Run workflow) once Pages is enabled with
+# source "GitHub Actions" in the repository settings.
+
+name: pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: make -C engine test wasm
+      - run: node engine/tests/wasm_moons.mjs
+      - name: build the site
+        working-directory: web
+        run: |
+          npm ci
+          npm run record
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
