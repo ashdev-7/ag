@@ -1,17 +1,23 @@
 // Browser smoke test of the built site: every preset loads, steps, trains or
 // races, with no console errors. Screenshots go to the directory given.
 //
-//   npm run build && node scripts/smoke.ts [screenshot-dir]
+//   npm run build && node scripts/smoke.ts [screenshot-dir] [chromium|firefox|webkit]
+//
+// webkit is the engine behind Safari; Playwright's build is close to Safari,
+// not identical to it.
 //
 // Serves dist/ itself, so it tests exactly what would be deployed.
 
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import { PRESETS } from '../src/graph/presets.ts';
 
-const shots = process.argv[2] ?? 'smoke-shots';
+const browserName = process.argv[3] ?? 'chromium';
+const browserType = ({ chromium, firefox, webkit } as const)[browserName as 'chromium'];
+if (!browserType) throw new Error(`unknown browser ${browserName}`);
+const shots = join(process.argv[2] ?? 'smoke-shots', browserName);
 mkdirSync(shots, { recursive: true });
 const PORT = 4173;
 const win = process.platform === 'win32';
@@ -31,7 +37,8 @@ try {
     try { if ((await fetch(base)).ok) break; } catch { /* not up yet */ }
     await sleep(250);
   }
-  const browser = await chromium.launch();
+  const browser = await browserType.launch();
+  console.log(`browser: ${browserName} ${browser.version()}`);
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors: string[] = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -54,6 +61,8 @@ try {
       const edges = await page.locator('.react-flow__edge-path').count();
       check(edges === wantEdges, `${p.id}: all ${wantEdges} edges drawn (${edges})`);
       for (let k = 0; k < 6; ++k) await page.getByTitle('One step forward').click();
+      // the counter follows the engine's reply, a moment after the click
+      await page.waitForFunction(() => document.querySelector('.transport .counter')?.textContent?.startsWith('6 /'), null, { timeout: 5000 }).catch(() => {});
       const counter = await page.locator('.transport .counter').textContent();
       check(counter?.startsWith('6 /') ?? false, `${p.id}: six steps forward (${counter})`);
       await page.getByTitle('To the end').click();
