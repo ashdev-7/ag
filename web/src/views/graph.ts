@@ -86,6 +86,54 @@ export function highlightAt(schedule: Step[], index: number, spec: GraphSpec, se
   return h;
 }
 
+// ── backward order ──────────────────────────────────────────────────────────
+
+export type QueueState = 'waiting' | 'ready' | 'running' | 'done';
+
+export interface QueueEntry {
+  nodeId: string;
+  state: QueueState;
+  /** Gradient contributions received so far, and how many it will get. */
+  got: number;
+  total: number;
+}
+
+/**
+ * Where every node of a backward pass stands after steps [0, index): still
+ * collecting gradient from its consumers, complete and waiting its turn
+ * (PyTorch's ready queue), passing its gradient on, or finished. Nodes come
+ * in the order they pass gradient back, then the leaves, which only collect.
+ */
+export function backwardQueue(schedule: Step[], index: number, spec: GraphSpec): QueueEntry[] {
+  const byId = new Map(spec.nodes.map((n) => [n.id, n]));
+  const target = (st: Step) => byId.get(st.nodeId)?.inputs[st.slot] ?? '';
+  const total = new Map<string, number>(), got = new Map<string, number>();
+  const sends = new Map<string, number>(), sent = new Map<string, number>();
+  const order: string[] = [];
+  const add = (m: Map<string, number>, id: string) => m.set(id, (m.get(id) ?? 0) + 1);
+  schedule.forEach((st, k) => {
+    const done = k < index;
+    if (st.kind === 'seedGrad') {
+      add(total, st.nodeId);
+      if (done) add(got, st.nodeId);
+    } else if (st.kind === 'vjp') {
+      if (!sends.has(st.nodeId)) order.push(st.nodeId);
+      add(sends, st.nodeId);
+      add(total, target(st));
+      if (done) {
+        add(sent, st.nodeId);
+        add(got, target(st));
+      }
+    }
+  });
+  const leaves = [...total.keys()].filter((id) => !sends.has(id));
+  return [...order, ...leaves].map((id) => {
+    const g = got.get(id) ?? 0, t = total.get(id) ?? 0, s = sent.get(id) ?? 0, out = sends.get(id) ?? 0;
+    const state: QueueState = g < t ? 'waiting' : s === out ? 'done' : s === 0 ? 'ready' : 'running';
+    return { nodeId: id, state, got: g, total: t };
+  });
+}
+
 // ── local derivatives ───────────────────────────────────────────────────────
 
 /** ∂out/∂input[slot], in words. `ins` are the input names. */

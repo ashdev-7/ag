@@ -123,6 +123,16 @@ try {
   await page.screenshot({ path: join(shots, 'compare.png'), fullPage: true });
   check(errors.length === 0, `compare: no console errors${errors.length ? ': ' + errors[0] : ''}`);
 
+  // a link to a point in a pass opens there, with the backward order shown
+  errors.length = 0;
+  await page.goto(`${base}#preset=expression&pass=reverse&i=7`);
+  await page.waitForSelector('.react-flow__node');
+  await page.waitForFunction(() => document.querySelector('.transport .counter')?.textContent?.startsWith('7 /'), null, { timeout: 10000 }).catch(() => {});
+  check((await page.locator('.transport .counter').textContent())?.startsWith('7 /') ?? false, 'link: opens at step 7');
+  const queue = await page.locator('.queue li').allTextContents();
+  check(queue.join('|') === 'ddone|cready|awaiting 1 of 2|bwaiting', `link: backward order at step 7 (${queue.join(', ')})`);
+  check(errors.length === 0, `link: no console errors${errors.length ? ': ' + errors[0] : ''}`);
+
   // a phone-sized screen
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}#preset=expression`);

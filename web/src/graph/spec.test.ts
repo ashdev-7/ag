@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeSpec, encodeSpec, toBuildPlan, validateSpec } from './spec.ts';
 import type { GraphSpec, OpName } from './spec.ts';
 import { PRESETS } from './presets.ts';
-import { fromUrlHash, gradientStops, highlightAt, toUrlHash } from '../views/graph.ts';
+import { backwardQueue, fromUrlHash, gradientStops, highlightAt, toUrlHash } from '../views/graph.ts';
 
 const ops = new Map<OpName, number>(['input', 'param', 'const', 'add', 'sub', 'mul', 'div', 'neg', 'pow', 'exp', 'log', 'matmul',
   'sum', 'mean', 'reshape', 'transpose', 'relu', 'leaky_relu', 'tanh', 'sigmoid', 'softmax', 'mse_loss',
@@ -103,5 +103,31 @@ describe('gradientStops', () => {
     expect([...gradientStops(spec, rg)]).toEqual(['sa']);
     // plain constants feeding plain constants stop nothing
     expect(gradientStops(spec, {}).size).toBe(0);
+  });
+});
+
+describe('backwardQueue', () => {
+  // the engine's reverse schedule for d = a*b + a (DESIGN §4.2)
+  const sched = [
+    ...['a', 'b', 'c', 'd'].map((nodeId) => ({ kind: 'forward' as const, nodeId, slot: 0 })),
+    { kind: 'seedGrad' as const, nodeId: 'd', slot: 0 },
+    { kind: 'vjp' as const, nodeId: 'd', slot: 0 },   // d -> c
+    { kind: 'vjp' as const, nodeId: 'd', slot: 1 },   // d -> a
+    { kind: 'vjp' as const, nodeId: 'c', slot: 0 },   // c -> a
+    { kind: 'vjp' as const, nodeId: 'c', slot: 1 },   // c -> b
+  ];
+  const at = (i: number) => Object.fromEntries(backwardQueue(sched, i, example).map((q) => [q.nodeId, `${q.state} ${q.got}/${q.total}`]));
+
+  it('lists nodes in the order they pass gradient back, then the leaves', () => {
+    expect(backwardQueue(sched, 0, example).map((q) => q.nodeId)).toEqual(['d', 'c', 'a', 'b']);
+  });
+
+  it('follows the pass step by step', () => {
+    expect(at(4)).toEqual({ d: 'waiting 0/1', c: 'waiting 0/1', a: 'waiting 0/2', b: 'waiting 0/1' });
+    expect(at(5)).toMatchObject({ d: 'ready 1/1' });
+    expect(at(6)).toMatchObject({ d: 'running 1/1', c: 'ready 1/1' });
+    // a has one of its two contributions: not ready, even though d is finished
+    expect(at(7)).toMatchObject({ d: 'done 1/1', a: 'waiting 1/2' });
+    expect(at(9)).toEqual({ d: 'done 1/1', c: 'done 1/1', a: 'done 2/2', b: 'done 1/1' });
   });
 });

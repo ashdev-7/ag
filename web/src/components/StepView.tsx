@@ -9,8 +9,8 @@ import type { Cursor, EngineError, PassKind, ScalarView, Stats, Step, TangentSee
 import type { Preset } from '../graph/presets.ts';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import { divergingScale, drawTensor, fmt, maxAbs } from '../views/draw.ts';
-import { gradientStops, highlightAt, localDerivative, localDerivativeValue } from '../views/graph.ts';
-import type { UrlState } from '../views/graph.ts';
+import { backwardQueue, gradientStops, highlightAt, localDerivative, localDerivativeValue } from '../views/graph.ts';
+import type { QueueEntry, UrlState } from '../views/graph.ts';
 import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
@@ -134,6 +134,9 @@ export function StepView(props: {
       let c = b.value;
       if (firstSeek.current > 0) {
         const s = await active.seek(Math.min(firstSeek.current, c.length));
+        // a restart may have superseded this run (setting the default
+        // direction restarts it); leave the linked step for that run
+        if (gen !== generation.current) return;
         firstSeek.current = 0;
         if (s.ok) c = s.value;
       }
@@ -270,6 +273,9 @@ export function StepView(props: {
           ) : (
             <p className="muted">Click a node to see its numbers.</p>
           )}
+          {(pass === 'reverse' || pass === 'train') && (
+            <BackwardOrder queue={backwardQueue(schedule, cursor.index, spec)} byId={byId} onSelect={setSelected} />
+          )}
           {modes && <ModesPanel modes={modes} onClose={() => setModes(null)} />}
         </aside>
       </div>
@@ -387,6 +393,38 @@ function NodeDetail(props: { node: NodeSpec; detail: Detail; gradLabel: string; 
       {detail.grad && props.gradDone ? (
         <Canvas height={height} draw={(ctx, w, hh) => drawTensor(ctx, w, hh, detail.grad!, shape, divergingScale(maxAbs(detail.grad!)))} />
       ) : <p className="muted">{detail.grad ? 'nothing has arrived yet' : 'none: nothing it feeds needs one'}</p>}
+    </div>
+  );
+}
+
+// ── the order of the backward pass ──────────────────────────────────────────
+
+const QUEUE_LABEL: Record<QueueEntry['state'], string> = { waiting: 'waiting', ready: 'ready', running: 'passing back', done: 'done' };
+const QUEUE_LIST_MAX = 40;
+
+function BackwardOrder(props: { queue: QueueEntry[]; byId: Map<string, NodeSpec>; onSelect: (id: string) => void }) {
+  const { queue, byId } = props;
+  const name = (id: string) => byId.get(id)?.name ?? id;
+  const ready = queue.filter((q) => q.state === 'ready');
+  return (
+    <div className="queue">
+      <h3>Backward order</h3>
+      <p className="muted">A node passes its gradient back only once every use of it has sent its share.</p>
+      <p>Ready: {ready.length ? ready.map((q) => <b key={q.nodeId}>{name(q.nodeId)} </b>) : <span className="muted">none</span>}</p>
+      {queue.length <= QUEUE_LIST_MAX ? (
+        <ol>
+          {queue.map((q) => (
+            <li key={q.nodeId} className={`q-${q.state}`} onClick={() => props.onSelect(q.nodeId)}>
+              <span>{name(q.nodeId)}</span>
+              <span className="q-state">{QUEUE_LABEL[q.state]}{q.total > 1 && q.state === 'waiting' ? ` ${q.got} of ${q.total}` : ''}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="muted">
+          {(['done', 'running', 'ready', 'waiting'] as const).map((s) => `${queue.filter((q) => q.state === s).length} ${QUEUE_LABEL[s]}`).join(' · ')}
+        </p>
+      )}
     </div>
   );
 }
