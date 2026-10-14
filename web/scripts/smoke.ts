@@ -133,6 +133,25 @@ try {
   check(queue.join('|') === 'ddone|cready|awaiting 1 of 2|bwaiting', `link: backward order at step 7 (${queue.join(', ')})`);
   check(errors.length === 0, `link: no console errors${errors.length ? ': ' + errors[0] : ''}`);
 
+  // the stepper from the keyboard alone
+  const counter = () => page.locator('.transport .counter').textContent();
+  const pressAndRead = async (key: string) => {
+    const before = await counter();
+    await page.keyboard.press(key);
+    await page.waitForFunction((b) => document.querySelector('.transport .counter')?.textContent !== b, before, { timeout: 3000 }).catch(() => {});
+    return counter();
+  };
+  await page.locator('.graph-wrap').click({ position: { x: 5, y: 5 } });   // focus the page, not a control
+  check((await pressAndRead('ArrowRight'))?.startsWith('8 /') ?? false, 'keys: → steps forward');
+  check((await pressAndRead('ArrowLeft'))?.startsWith('7 /') ?? false, 'keys: ← steps back');
+  check((await pressAndRead('End'))?.startsWith('9 /') ?? false, 'keys: End jumps to the end');
+  check((await pressAndRead('Home'))?.startsWith('0 /') ?? false, 'keys: Home jumps to the start');
+  await page.keyboard.press(' ');
+  await sleep(1500);
+  const played = Number((await counter())?.split(' ')[0]);
+  await page.keyboard.press(' ');
+  check(played > 0, `keys: space plays (reached step ${played})`);
+
   // a phone-sized screen
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}#preset=expression`);

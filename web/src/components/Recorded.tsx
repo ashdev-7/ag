@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Preset } from '../graph/presets.ts';
-import { divergingScale, drawField, drawLines, drawPaths, drawPoints, PALETTE, surfaceScale } from '../views/draw.ts';
+import { divergingScale, drawField, drawLines, drawPaths, drawPoints, layerColor, PALETTE, surfaceScale } from '../views/draw.ts';
 import { Canvas } from './Canvas.tsx';
 import { Legend } from './TrainView.tsx';
 
@@ -70,8 +70,8 @@ export function Recorded({ preset }: { preset: Preset }) {
       <section className="panel">
         <h4>Gradient norm per layer</h4>
         <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h,
-          Object.entries(rec.gradNorms).map(([k, y], i) => ({ label: k, color: PALETTE[(i + 2) % PALETTE.length], x: steps, y })), { logY: true })} />
-        <Legend items={Object.keys(rec.gradNorms).map((k, i) => ({ label: k, color: PALETTE[(i + 2) % PALETTE.length] }))} />
+          Object.entries(rec.gradNorms).map(([k, y], i) => ({ label: k, color: layerColor(i, Object.keys(rec.gradNorms).length), x: steps, y })), { logY: true })} />
+        <Legend items={Object.keys(rec.gradNorms).map((k, i) => ({ label: k, color: layerColor(i, Object.keys(rec.gradNorms).length) }))} />
       </section>
     </div>
   );

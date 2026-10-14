@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
-import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, maxAbs, PALETTE } from '../views/draw.ts';
+import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, layerColor, maxAbs, PALETTE } from '../views/draw.ts';
 import type { Series } from '../views/draw.ts';
 import type { Highlight, UrlState } from '../views/graph.ts';
 import { Canvas } from './Canvas.tsx';
@@ -237,7 +237,7 @@ export function TrainView(props: {
     { label: `${r.optim.kind} validation`, color: PALETTE[i], x: r.history.step, y: r.history.val, dash: true },
   ]);
   const normSeries: Series[] = preset.layers.map((l, i) => ({
-    label: l.label, color: PALETTE[(i + 2) % PALETTE.length], x: a.history.step, y: a.history.norms[l.label] ?? [],
+    label: l.label, color: layerColor(i, preset.layers.length), x: a.history.step, y: a.history.norms[l.label] ?? [],
   }));
 
   return (
@@ -298,7 +298,7 @@ export function TrainView(props: {
         <section className="panel">
           <h4>Gradient norm per layer <span className="muted">{comparing ? runs[0].optim.kind : ''}</span></h4>
           <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true })} />
-          <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: PALETTE[(i + 2) % PALETTE.length] }))} />
+          <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: layerColor(i, preset.layers.length) }))} />
         </section>
 
         <section className="panel">

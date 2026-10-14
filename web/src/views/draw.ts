@@ -205,10 +205,15 @@ export function drawPaths(ctx: CanvasRenderingContext2D, w: number, h: number,
   const Y = (y: number) => (1 - (y - d.y0) / (d.y1 - d.y0)) * h;
   for (const p of paths) {
     if (!p.points.length) continue;
-    ctx.strokeStyle = p.color;
-    ctx.lineWidth = 2;
     ctx.beginPath();
     p.points.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+    // a light halo first, so dark paths stay visible in the dark valley
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 2;
     ctx.stroke();
     const [ex, ey] = p.points[p.points.length - 1];
     ctx.beginPath();
@@ -220,5 +225,21 @@ export function drawPaths(ctx: CanvasRenderingContext2D, w: number, h: number,
   }
 }
 
-// eight colours that stay distinct from each other, also for common colour blindness
-export const PALETTE = ['#e66101', '#5e3c99', '#1b9e77', '#2166ac', '#e7298a', '#a6761d', '#666666', '#66a61e'];
+// colours for things that are told apart by name (racers, compared optimizers).
+// chosen so every pair stays far apart (CIELAB distance > 25) with normal
+// vision and simulated protanopia, deuteranopia and tritanopia; checked in
+// colors.test.ts. no view shows more than four such series at once
+export const PALETTE = ['#e66101', '#2166ac', '#cc79a7', '#882255'];
+
+// layers are ordered, so they get a ramp instead: dark indigo for the first
+// layer to orange for the last. lightness rises along it under every kind of
+// colour vision, so depth reads the same for everyone
+const RAMP: RGB[] = [[45, 0, 75], [123, 50, 148], [230, 97, 1]];
+
+/** Colour of layer `i` of `n`. */
+export function layerColor(i: number, n: number): string {
+  const t = n > 1 ? Math.max(0, Math.min(1, i / (n - 1))) : 0;
+  const s = t * (RAMP.length - 1), k = Math.min(RAMP.length - 2, Math.floor(s));
+  const c = mix(RAMP[k], RAMP[k + 1], s - k);
+  return '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+}

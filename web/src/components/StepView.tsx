@@ -176,6 +176,24 @@ export function StepView(props: {
     };
   }, [active, selected, cursor, shapes, gradWhich]);
 
+  // keyboard: arrows step, space plays, home and end jump. keys typed into a
+  // field, or pressed on a focused button, keep their usual meaning
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(t.tagName))) return;
+      const target = { ArrowRight: cursor.index + 1, ArrowLeft: cursor.index - 1, Home: 0, End: cursor.length }[e.key];
+      if (target === undefined && e.key !== ' ') return;
+      e.preventDefault();
+      if (target === undefined) return setPlaying((p) => !p && cursor.index < cursor.length);
+      setPlaying(false);
+      go(target);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [go, cursor]);
+
   const highlight = useMemo(
     () => (spec ? highlightAt(schedule, cursor.index, spec, tangentSeed?.nodeId) : null),
     [spec, schedule, cursor.index, tangentSeed],
@@ -234,13 +252,13 @@ export function StepView(props: {
       <div className="toolbar">
         <div className="segmented" role="tablist" aria-label="Pass">
           {PASSES.map((p) => (
-            <button key={p.pass} className={pass === p.pass ? 'on' : ''} title={p.hint} onClick={() => setPass(p.pass)}
+            <button key={p.pass} className={pass === p.pass ? 'on' : ''} aria-pressed={pass === p.pass} title={p.hint} onClick={() => setPass(p.pass)}
               disabled={active.info.schedules[p.pass].length === 0}>{p.label}</button>
           ))}
         </div>
         <div className="segmented" aria-label="Zoom">
-          <button className={zoom === 'tensor' ? 'on' : ''} onClick={() => setZoom('tensor')}>Tensors</button>
-          <button className={zoom === 'scalar' ? 'on' : ''} onClick={() => setZoom('scalar')} title="Every element as its own node">Single numbers</button>
+          <button className={zoom === 'tensor' ? 'on' : ''} aria-pressed={zoom === 'tensor'} onClick={() => setZoom('tensor')}>Tensors</button>
+          <button className={zoom === 'scalar' ? 'on' : ''} aria-pressed={zoom === 'scalar'} onClick={() => setZoom('scalar')} title="Every element as its own node">Single numbers</button>
         </div>
         {pass === 'forwardMode' && spec && (
           <label className="field">direction
@@ -281,15 +299,15 @@ export function StepView(props: {
       </div>
 
       <div className="transport">
-        <button onClick={() => go(0)} title="Back to the start">⏮</button>
-        <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} title="One step back">◀</button>
-        <button className="primary" onClick={() => setPlaying(!playing)} disabled={cursor.index >= cursor.length && !playing}>
+        <button onClick={() => go(0)} title="Back to the start (Home)" aria-label="Back to the start">⏮</button>
+        <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} title="One step back (←)" aria-label="One step back">◀</button>
+        <button className="primary" onClick={() => setPlaying(!playing)} disabled={cursor.index >= cursor.length && !playing} title="Play or pause (space)">
           {playing ? 'Pause' : 'Play'}
         </button>
-        <button onClick={() => go(cursor.index + 1)} disabled={cursor.index >= cursor.length} title="One step forward">▶</button>
-        <button onClick={() => go(cursor.length)} title="To the end">⏭</button>
+        <button onClick={() => go(cursor.index + 1)} disabled={cursor.index >= cursor.length} title="One step forward (→)" aria-label="One step forward">▶</button>
+        <button onClick={() => go(cursor.length)} title="To the end (End)" aria-label="To the end">⏭</button>
         <input type="range" min={0} max={cursor.length} value={cursor.index} onChange={(e) => go(Number(e.target.value))} aria-label="Step" />
-        <span className="counter">{cursor.index} / {cursor.length}</span>
+        <span className="counter" aria-live="polite">{cursor.index} / {cursor.length}</span>
         <label className="field">speed
           <input type="range" min={60} max={1200} step={30} value={1260 - delay} onChange={(e) => setDelay(1260 - Number(e.target.value))} />
         </label>
@@ -414,9 +432,11 @@ function BackwardOrder(props: { queue: QueueEntry[]; byId: Map<string, NodeSpec>
       {queue.length <= QUEUE_LIST_MAX ? (
         <ol>
           {queue.map((q) => (
-            <li key={q.nodeId} className={`q-${q.state}`} onClick={() => props.onSelect(q.nodeId)}>
-              <span>{name(q.nodeId)}</span>
-              <span className="q-state">{QUEUE_LABEL[q.state]}{q.total > 1 && q.state === 'waiting' ? ` ${q.got} of ${q.total}` : ''}</span>
+            <li key={q.nodeId} className={`q-${q.state}`}>
+              <button onClick={() => props.onSelect(q.nodeId)}>
+                <span>{name(q.nodeId)}</span>
+                <span className="q-state">{QUEUE_LABEL[q.state]}{q.total > 1 && q.state === 'waiting' ? ` ${q.got} of ${q.total}` : ''}</span>
+              </button>
             </li>
           ))}
         </ol>
@@ -436,7 +456,9 @@ function ModesPanel({ modes, onClose }: { modes: ModeResult | 'running'; onClose
       <h3>Reverse vs forward mode <button className="ghost small" onClick={onClose}>×</button></h3>
       <p><b>Reverse mode:</b> 1 pass gave all {modes.rows.length} derivatives of the loss.</p>
       <p><b>Forward mode:</b> {modes.passes} passes{modes.truncated ? ' (stopped at 200)' : ''}, one per input number.</p>
-      <p className={modes.worst < 1e-4 ? 'ok' : 'bad'}>Largest relative difference: {modes.worst.toExponential(1)}</p>
+      <p className={modes.worst < 1e-4 ? 'ok' : 'bad'}>
+        {modes.worst < 1e-4 ? '✓ They agree.' : '✗ They differ.'} Largest relative difference: {modes.worst.toExponential(1)}
+      </p>
       <table>
         <thead><tr><th>input</th><th>reverse</th><th>forward</th></tr></thead>
         <tbody>
