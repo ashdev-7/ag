@@ -23,7 +23,9 @@ const ARITY: Record<OpName, [number, number]> = {
   detach: [1, 1],
 };
 
-const SOURCES: readonly OpName[] = ['input', 'param', 'const'];
+/** Every op name, in no particular order. */
+export const OP_NAMES = Object.keys(ARITY) as OpName[];
+export const SOURCES: readonly OpName[] = ['input', 'param', 'const'];
 
 /** In engine order (enum Init in engine/include/ag/graph.hpp). */
 export const INIT_NAMES = [

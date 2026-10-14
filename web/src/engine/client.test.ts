@@ -12,11 +12,13 @@ class FakeWorker {
   onmessage: ((ev: MessageEvent<FromWorker>) => void) | null = null;
   onerror: ((ev: ErrorEvent) => void) | null = null;
   terminated = false;
+  sent: Envelope[] = [];
   mode: () => Mode;
   constructor(mode: () => Mode) {
     this.mode = mode;
   }
   postMessage(msg: Envelope) {
+    this.sent.push(msg);
     const reply = (m: FromWorker) => setTimeout(() => !this.terminated && this.onmessage?.({ data: m } as MessageEvent<FromWorker>), 1);
     const mode = this.mode();
     if (msg.type === 'init') {
@@ -41,16 +43,18 @@ function setup(initial: Mode) {
   const statuses: EngineStatus[] = [];
   let workers = 0;
   let mode = initial;
+  let last: FakeWorker | null = null;
   const client = createEngineClient({
     createWorker: () => {
       workers++;
-      return new FakeWorker(() => mode) as unknown as Worker;
+      last = new FakeWorker(() => mode);
+      return last as unknown as Worker;
     },
     wasmUrl: 'x',
     timeoutMs: 40,
     onStatus: (s) => statuses.push(s),
   });
-  return { client, statuses, workers: () => workers, setMode: (m: Mode) => (mode = m) };
+  return { client, statuses, workers: () => workers, setMode: (m: Mode) => (mode = m), worker: () => last! };
 }
 
 describe('EngineClient', () => {
@@ -112,5 +116,31 @@ describe('EngineClient', () => {
     expect((await client.ready()).ok).toBe(false);
     expect(client.status.state).toBe('unavailable');
     client.dispose();
+  });
+
+  it('acknowledges each frame once, after the page has handled it, and not after a pause', async () => {
+    const t = setup('ok');
+    await t.client.ready();
+    const r = await t.client.createSession(spec, config);
+    if (!r.ok) throw new Error('no session');
+    const session = r.value;
+    const seen: number[] = [];
+    await session.run({ watch: { stats: [], tensors: [] }, stepsPerFrame: 1, onFrame: (f) => seen.push(f.seq), onStopped: () => {} });
+    const w = t.worker();
+    const acks = () => w.sent.filter((m) => m.type === 'ackFrame').map((m) => (m as unknown as { seq: number }).seq);
+    const frame = (seq: number) => w.onmessage?.({ data: { type: 'frame', session: 1, seq, step: seq, loss: 0, gradNorm: 0, lr: 0,
+      stepsPerSecond: 0, valueStats: {}, gradStats: {}, tensors: [] } } as unknown as MessageEvent<FromWorker>);
+    const settle = () => new Promise((res) => setTimeout(res, 20));
+
+    frame(1);
+    expect(seen).toEqual([1]);
+    expect(acks()).toEqual([]);   // not on receipt: on the next display frame
+    await settle();
+    expect(acks()).toEqual([1]);
+    frame(2);
+    await session.pause();
+    await settle();
+    expect(acks()).toEqual([1]);   // paused before the ack went out: no ack, no new frame
+    t.client.dispose();
   });
 });
