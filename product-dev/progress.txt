@@ -1,0 +1,415 @@
+PROGRESS LOG
+============
+A running record of what was asked and what was answered, newest entry last.
+Full detail lives in PLAN.md and PRD.md in this directory; this file records
+the conversation and the decisions.
+
+
+------------------------------------------------------------------------
+ENTRY 1   2026-10-13
+------------------------------------------------------------------------
+ASKED
+  Turn the autograd engine into a full website product, built in phases.
+  The idea: a tool that lets people visualise deep learning (backprop,
+  optimizers, layer sizes, activations, skip connections, reverse vs forward
+  mode, activation checkpointing). End goal: drag and drop nodes, connect
+  them, and watch learning happen; a transparent glass over PyTorch-style
+  libraries; a data-flow diagram of neural network training. Little
+  conceptual text in the first draft. Draft a 5-phase plan, starting from a
+  deep learning syllabus, with constraints (no ResNet-50), core in C++.
+  Read the current code, micrograd, and PyTorch first.
+
+ANSWERED
+  What was read
+    - This repo: Tensor.hpp/.cpp, Ops.hpp/.cpp, Bindings.cpp, CMakeLists.txt,
+      tests/test_engine.cpp, summary.txt.
+    - micrograd engine.py and nn.py.
+    - PyTorch torch/csrc/autograd/engine.cpp and torch/utils/checkpoint.py.
+
+  State of the engine today
+    micrograd in C++: 8 scalar ops, a backward closure per node, recursive
+    topological sort, no optimizer or layers. Four blockers:
+      1. Scalar only: every op touches element [0].
+      2. Backward closures are opaque: cannot be stepped, serialised, listed
+         in a palette, or run in forward mode.
+      3. Leak: each closure captures its own output node.
+      4. Tests always exit 0 and have no finite-difference check.
+
+  Central idea
+    The engine emits a step-by-step trace of everything it does. The website
+    is a viewer and editor for that trace.
+
+  Architecture
+    - C++ core compiled to WebAssembly, run in a Web Worker. No server.
+    - Op registry: each op declares forward, vjp, jvp, shape_infer.
+    - Executor in PyTorch's style: dependency counts, ready queue, saved
+      tensors released explicitly.
+    - Three zoom levels: scalar, tensor, module.
+    - Python bindings kept only as a test oracle against PyTorch.
+
+  Constraints (proposed, to be measured)
+    about 100k parameters per model, about 64k elements per tensor, about
+    200 nodes on canvas, a train step under 16 ms, float32 on CPU, small
+    bundled datasets. "ResNet" means 3 to 6 residual blocks on small data.
+
+  Syllabus
+    Computation graph and chain rule; reverse vs forward mode; tensors and
+    broadcasting; activations; losses; initialisation; optimizers and
+    schedules; training pathologies; layer sizes; skip/concat/weight
+    sharing; regularisation; normalisation; convolution and pooling; memory
+    and checkpointing; attention (stretch).
+
+  Five phases (later merged into two, see entry 3)
+    1 Engine, 2 Read-only viewer, 3 Live training, 4 Builder, 5 Depth and
+    launch.
+
+  Also noted
+    - Similar tools exist (TensorFlow Playground, CNN Explainer, Transformer
+      Explainer, Netron), so "no tool exists" is not quite right.
+    - The CLAUDE.md found on the Desktop describes a different project
+      (AirStay) and was ignored.
+
+
+------------------------------------------------------------------------
+ENTRY 2   2026-10-14
+------------------------------------------------------------------------
+ASKED
+  Write the plan down, and preferably also generate a PRD. Both in a new
+  directory named "product-dev".
+
+ANSWERED
+  Created, not committed:
+    product-dev/PLAN.md   the plan with per-phase work, exit criteria, a
+                          first sketch of trace events, risks, open decisions
+    product-dev/PRD.md    problem, users, goals and non-goals, user stories,
+                          prioritised requirements, limits, success measures,
+                          release milestones
+
+  Flagged as assumptions needing review
+    - The limits are proposals until measured.
+    - The competitor table was from memory at that point (verified in
+      entry 3).
+    - Usage analytics conflict with "nothing leaves the browser".
+    - Non-goals chosen without being asked: no accounts, no GPU, no model
+      import, desktop-first.
+    - Still open: product name, licence, whether a paid tier is intended.
+
+
+------------------------------------------------------------------------
+ENTRY 3   2026-10-14
+------------------------------------------------------------------------
+ASKED
+  If similar tools exist, take inspiration from them, and if they have open
+  source code, build on top of it. There will be only 2 development phases:
+  update the Phase 1 and Phase 2 work. Describe what the end product looks
+  like. Keep every question and answer in a txt file titled "progress".
+
+ANSWERED
+  1. Existing tools (licence and activity checked on GitHub, 2026-10-14)
+
+     Use as libraries
+       xyflow / React Flow      MIT         node editor canvas
+       dagre                    MIT         automatic graph layout
+
+     Port specific views from (permissive licences)
+       TensorFlow Playground    Apache-2.0  decision boundary, loss chart,
+                                            toy dataset generators
+       ENNUI                    MIT         palette, shape checks, Python
+                                            export (stale since 2023)
+       CNN Explainer            MIT         convolution and pooling views
+
+     Design models
+       Transformer Explainer (MIT), llm-viz (MIT), Netron (MIT),
+       ConvNetJS (MIT), micrograd (MIT), Distill momentum article
+       (CC-BY-4.0), loss-landscape-anim (MIT)
+
+     Ideas only, no licence so nothing may be copied
+       autograd-ui                   closest to our stepper
+       neural-network-from-scratch   closest to our architecture (Rust+WASM)
+
+     Decision: do not fork any of these apps. None exposes autograd at op
+     level, and the existing builders run on TensorFlow.js, which hides what
+     this product is meant to show. The engine and trace stay ours; we build
+     on open source as libraries and by porting proven views, with a
+     THIRD_PARTY_NOTICES file.
+
+     Positioning changes from "nothing like this exists" to "the pieces
+     exist separately; this joins them on a transparent engine".
+
+     Limits of this check: features are from repository descriptions and
+     search summaries, the apps were not each opened and tested, and the
+     search was not exhaustive.
+
+  2. Two phases, three milestones each
+
+     PHASE 1 - GLASS: see a network learn (ends in a public release)
+       1A Engine         tensors, op registry, VJP and JVP, new executor,
+                         trace, leak fix, WASM build, real tests, benchmarks
+       1B Viewer         graph rendering, stepper, inspectors, scalar and
+                         tensor zoom, reverse vs forward mode, presets
+       1C Live training  losses, optimizers, initialisers, datasets,
+                         decision boundary, histograms, optimizer race,
+                         side-by-side runs, pathology presets, deploy
+
+     PHASE 2 - BUILDER: make your own, and launch
+       2A Builder        palette, drag/connect, undo, shape inference,
+                         modules, skip/concat, dropout, save and share
+       2B Depth          convolution, normalisation, memory timeline,
+                         checkpointing, PyTorch export, attention (stretch)
+       2C Launch         gallery, onboarding, performance, accessibility
+
+     Phase 1 alone is a complete product on preset networks. The builder is
+     second because it edits a graph format that Phase 1 must already run
+     and display.
+
+  3. The end product
+     One desktop page, no install, no account. Palette on the left, canvas
+     in the centre, inspector on the right, transport controls and a
+     timeline below, charts at the bottom. A session: build a network by
+     dragging and connecting; step through forward and backward one op at a
+     time; zoom between scalar, tensor and module views; run training and
+     watch the decision boundary, loss and per-layer histograms; compare two
+     optimizers from one seed; switch to forward mode; open the memory panel
+     and draw a checkpoint region; share a link or export PyTorch code.
+     Full layout sketch and walkthrough: PLAN.md section 8.
+
+  4. Files changed, not committed
+     PLAN.md   section 3.2 added (prior art), section 7 rewritten as two
+               phases, section 8 replaced with the end-product description,
+               syllabus phase column and open decisions updated
+     PRD.md    section 4 rewritten, section 8 headings and section 12
+               milestones moved to the two-phase structure
+     progress.txt   this file, backfilled with entries 1 and 2
+
+
+------------------------------------------------------------------------
+ENTRY 4   2026-10-14
+------------------------------------------------------------------------
+ASKED
+  How would Andrej Karpathy build Phase 1 end to end? Work out the HLD, LLD
+  and function signatures. Cross-verify with CNN Explainer, Netron,
+  Transformer Explainer, TensorFlow Playground. Finalise a fault tolerant,
+  reliable design: signatures, data flow, everything except the in-depth
+  implementations. Implement that, and record it in progress.txt.
+
+HOW THE REQUEST WAS READ
+  "Everything except the in-depth implementations" was taken to mean: write
+  the design, and put every data structure and function signature into real
+  code that compiles, with bodies left as stubs. Small utilities that the
+  skeleton's own tests need were implemented for real. If the intent was
+  only a document, or a full implementation, this entry is where to correct
+  it.
+
+ANSWERED
+  1. Approach
+     Nobody can speak for Karpathy, so the design follows the habits visible
+     in micrograd and ConvNetJS: small flat code, plain structs and free
+     functions, the simplest correct mechanism, one table of ops, every op
+     checked against finite differences and PyTorch, and overfit one tiny
+     case (moons) before building anything else.
+
+  2. What the design changed from PLAN.md, all simplifications
+     - Event trace  ->  a schedule of micro-steps computed at compile time.
+       The UI gets the whole timeline up front; scrubbing backwards is exact.
+     - Strides and views  ->  always-contiguous tensors.
+     - Ready-queue executor  ->  reverse node order (nodes are already
+       topological because an input must have a smaller id).
+     - Views into WASM memory  ->  statistics computed in C++, full tensors
+       copied only for the selected node.
+     - Per-step allocation  ->  everything allocated once at compile.
+     - Ops that throw  ->  floating-point rules plus nan/inf detection that
+       names the node.
+     - Bitwise native/WASM equality  ->  agreement within tolerance.
+
+  3. HLD
+     Page (main thread): GraphSpec, one AppState with a reducer, React Flow
+     canvas, canvas charts, EngineClient.
+     Worker: dispatch, bridge, WASM engine.
+     Engine: capi -> Session -> two Programs (train batch, eval batch)
+     sharing one ParamStore -> Exec -> op kernels; Optimizer; Dataset.
+
+  4. Data flow
+     GraphSpec -> validateSpec -> toBuildPlan -> addNode calls -> compile
+     (shapes, limits, buffer layout, schedules) -> Session -> page receives
+     node shapes and schedules.
+     Stepping: begin / advance / seek(replay from snapshot) / read.
+     Training: worker runs N steps, posts one Frame, waits for the ack.
+
+  5. Fault tolerance (full table in DESIGN_PHASE1.md section 7)
+     - Everything is checked at compile time; after that the only runtime
+       failure is a non-finite number.
+     - Nothing is allocated while running.
+     - A training step is a transaction: snapshot at start, rollback on
+       fault, so a nan never reaches the parameters.
+     - No exceptions; every function returns a status with node and slot.
+     - Handles carry a generation, so stale handles are rejected.
+     - Client watchdog restarts a crashed or hung worker and rebuilds
+       sessions from spec and seed; after repeated failure the page falls
+       back to recorded presets.
+     - One frame in flight, so a slow page cannot make messages pile up.
+
+  6. Cross-check against existing tools (their source was read today)
+     TensorFlow Playground   5 files; forwardProp/backProp/updateWeights as
+                             free functions; 100x100 boundary grid drawn one
+                             pixel per sample; state and seed in the URL
+                             hash. Taken: all four. Different: we compute in
+                             a worker and roll back diverged runs.
+     CNN Explainer           runs the model once, builds its own node/link
+                             graph from all outputs, then draws. Taken:
+                             draw only from a complete snapshot (Frame).
+     Transformer Explainer   ONNX Runtime Web plus five precomputed
+                             examples. Taken: recorded presets shown before
+                             the engine loads and when it cannot run.
+     Netron                  format-independent graph model; layout in a
+                             cancellable worker; one error screen. Taken:
+                             one error banner, client owns the worker.
+     The check changed four things: grid default of 100, recorded-preset
+     fallback, single error banner, snapshot-per-frame drawing.
+
+  7. Files created, not committed
+     product-dev/DESIGN_PHASE1.md   the design
+     engine/include/ag/             core rng graph ops program exec optim
+                                    data scalarize session (.hpp), capi.h
+     engine/src/                    one .cpp per header
+     engine/tests/test_skeleton.cpp
+     engine/CMakeLists.txt
+     web/src/graph/spec.ts          GraphSpec, validation, build plan
+     web/src/engine/protocol.ts     18 request types, Frame, Stopped
+     web/src/engine/client.ts       EngineClient and Session interfaces
+     web/src/views/contracts.ts     AppState, actions, chart and component
+                                    signatures
+     Changed: root CMakeLists.txt (adds engine/), PLAN.md (points at the
+     design; 1A work list and exit criteria brought in line with it).
+
+  8. What is real and what is a stub
+     Implemented: status and error type, shapes and the broadcasting rule,
+     PCG32 rng, graph building with arity and reference checks, the op
+     table (names, arity, categories), C API metadata functions.
+     Stubs: all 23 op kernels, compile, the executor, optimizers, datasets,
+     scalarize, session, 27 of 37 C API functions, and the whole web
+     runtime (the .ts files are types and declarations only).
+
+  9. Verified
+     - Engine skeleton compiles with g++ -std=c++20 -Wall -Wextra -Wpedantic
+       with no warnings; test_skeleton runs 32 checks, all pass, and exits
+       non-zero on failure.
+     - The original scalar engine still builds and its 44 checks pass.
+     - The TypeScript files typecheck under tsc --strict.
+     Not verified: the CMake build (no generator and pybind11 fetch on this
+     machine were tried; the engine was compiled with g++ directly), and
+     there is no Emscripten here, so nothing has been built for WASM.
+
+  10. Next
+     DESIGN_PHASE1.md section 10 is the build order. First step: add, mul,
+     sum and mse_loss end to end, checked on d = a*b + a.
+
+
+------------------------------------------------------------------------
+ENTRY 5   2026-10-14
+------------------------------------------------------------------------
+ASKED
+  Put everything built on top of the previous autograd engine in a
+  different repository, https://github.com/ashdev-7/ag.git, and keep the
+  original untouched. Complete Phase 1 of the project, and at each step
+  work out what Karpathy would do.
+
+ANSWERED
+  1. The repositories
+     New work lives in https://github.com/ashdev-7/ag (local clone:
+     "New folder/ag"). engine/, web/ and product-dev/ were copied there and
+     checked byte for byte, then removed from autograd-engine, and its
+     CMakeLists.txt change was reverted. autograd-engine is back at its
+     single commit; the only untracked file there is the user's own
+     summary.txt, left alone. The new engine is a rewrite, so the new repo
+     does not contain the old scalar engine.
+
+  2. How "what would Karpathy do" was applied, step by step
+     - Smallest end-to-end case first: d = a*b + a had to give 8, 4 and 2
+       through the tensor engine before anything else was trusted.
+     - A checker before more ops: every op is tested against finite
+       differences and against its own forward mode.
+     - Overfit one small thing and look at the numbers: the moons MLP was
+       trained and its loss printed every 250 steps.
+     - Compare against the reference: every op and optimizer is checked
+       against PyTorch.
+     - Look at the numbers for every preset before building the views on
+       them. This caught the spirals preset not learning (see 4).
+     - Look at the output itself: the site was driven in a headless
+       browser and every screenshot inspected. This caught a graph-fit bug
+       and two near-identical chart colours.
+     - No cleverness that was not needed: plain loops, one Makefile, no
+       state or chart library, every chart a canvas function.
+
+  3. What Phase 1 now does (all three milestones)
+     1A engine     23 ops with forward, reverse and forward-mode kernels;
+                   broadcasting; compile-time shapes, limits, memory and
+                   schedules; six optimizers with schedules and clipping;
+                   initialisers; six datasets; sessions with transactional
+                   training steps and exact seek; the single-number
+                   expansion; a 41-function C API; WebAssembly build.
+     1B viewer     four stepping presets; play, pause, step, scrub; tensor
+                   and single-number zoom; inspector with the chain-rule
+                   product in numbers; reverse vs forward mode with pass
+                   counts.
+     1C training   six training presets including vanishing gradients and
+                   dead ReLUs; decision boundary, loss, gradient norm per
+                   layer, activation histograms with dead-unit share,
+                   optimizer state; two optimizers side by side from
+                   identical weights; optimizer race on three surfaces;
+                   landing page; recorded runs when the engine cannot run.
+     Fault handling: a nan stops training at the node where it appeared
+     and the step is rolled back; a hung or trapped engine is restarted;
+     after repeated failures the page shows recorded runs.
+
+  4. Changes from the design, each with its reason in DESIGN_PHASE1.md 12
+     - Starting a pass now clears every computed value, not only gradients.
+       The seek test found the difference.
+     - Each tensor element maps to its own scalar node id.
+     - The loss surface takes two parameters; four C functions were added.
+     - Spirals uses a 32-32 ReLU network: tanh sat on a plateau.
+     - Dataset noise is drawn in separate statements, because g++ and
+       clang evaluate function arguments in different orders and the WASM
+       dataset would have differed from the native one.
+     - App state is split per view instead of one reducer; a Makefile is
+       the main build, CMake kept.
+     - Not built, deliberately: no_grad/detach and the module zoom level.
+       Nothing in Phase 1 uses them; both belong with the Phase 2 builder.
+
+  5. Verified
+     - Native: 102 checks plus 33 skeleton checks pass; g++ and clang are
+       both warning-free. Every op passes finite differences (worst 5e-5)
+       and forward vs reverse mode.
+     - PyTorch 2.9: 26 op cases agree to 3e-7, 6 optimizers over 10 steps
+       to 2e-5.
+     - The WASM build matches native batch losses over 1,500 steps to
+       1.4e-7.
+     - CMake build and ctest pass (this was unverified last time).
+     - Web: 13 unit tests, including the client recovering from a hung
+       worker, a trapped worker, repeated crashes and a failed load.
+     - Browser: all 13 presets, the comparison link and a phone-sized
+       screen in headless Chromium, with no console errors.
+     - Benchmark (DESIGN_PHASE1.md 11, PLAN.md 5): every preset trains in
+       0.07 to 0.4 ms per step in WASM; WASM is 1.4 to 2.3 times slower
+       than native.
+
+  6. Not done, and why
+     - Deployment: .github/workflows/pages.yml builds and publishes the
+       site, but GitHub Pages has to be switched on in the repository
+       settings first (Settings > Pages > Source: GitHub Actions), then the
+       workflow run from the Actions tab. Publishing a public site is the
+       user's call.
+     - CI (.github/workflows/ci.yml) runs on every push. Its first run
+       happens on GitHub; it has not been watched from here.
+     - Installed on this machine: Emscripten SDK in C:\Users\YASH\emsdk,
+       Playwright's Chromium for the smoke test.
+
+  7. Commits on main in the new repository
+     docs: product plan, PRD and Phase 1 design
+     feat(engine): C++ tensor autodiff engine with WebAssembly build
+     feat(web): stepper, live training and optimizer race
+     ci: test engine, WASM and site; manual GitHub Pages deploy
+     docs: progress entry 5 (this entry)
+
+  8. Next
+     Switch on GitHub Pages and run the pages workflow. Then Phase 2
+     (PLAN.md 7): the builder.
