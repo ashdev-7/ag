@@ -1,0 +1,30 @@
+{
+  "name": "ag-glass",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "record": "node scripts/record.ts"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "1.1.4",
+    "@xyflow/react": "12.3.6",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "playwright": "1.49.1",
+    "typescript": "5.6.3",
+    "vite": "6.0.7",
+    "vitest": "3.0.5"
+  }
+}
