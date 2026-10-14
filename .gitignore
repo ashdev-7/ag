@@ -1,0 +1,15 @@
+# engine
+engine/build/
+
+# web
+web/node_modules/
+web/dist/
+web/smoke-shots/
+# built from engine/ by `make -C engine wasm`; CI builds it fresh
+web/public/engine/
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
