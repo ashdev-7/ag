@@ -418,13 +418,14 @@ Every row of this table is implemented. The PyTorch comparison reads cases the C
 
 | Check | Result |
 |---|---|
-| `make test` (native) | 154 checks pass, plus 33 in the skeleton test; g++ and clang (Emscripten) both warning-free; the same suite runs clean with undefined-behaviour traps on (`-fsanitize=undefined,float-cast-overflow -fsanitize-trap=all`) |
+| `make test` (native) | 171 checks pass (154 at the end of the audit, 17 for detach and no_grad), plus 33 in the skeleton test; g++ and clang (Emscripten) both warning-free; the same suite runs clean with undefined-behaviour traps on (`-fsanitize=undefined,float-cast-overflow -fsanitize-trap=all`) |
 | `make torch` | 26 op cases and 6 optimizers match PyTorch 2.9 |
 | `make wasm-test` | WASM agrees with native to 1.4e-7 after 1,500 steps; errors carry spec ids |
 | CMake build + ctest | both test binaries pass |
-| `npm test` | 13 tests: spec validation, URL parsing, client recovery from a hung worker, a trapped worker, repeated crashes and a failed load |
+| `npm test` | 42 tests: spec validation, URL parsing, client recovery (hung worker, trapped worker, repeated crashes, failed load) and frame pacing; every local derivative the inspector prints against finite differences; colour separation under simulated colour blindness; backward order; colour scales |
 | `npm run build` | 135 KB of JS gzipped, plus a 170 KB engine |
-| `scripts/smoke.ts` | all 13 presets, comparison link and phone layout, no console errors |
+| `scripts/smoke.ts` | 61 checks in each of Chromium 131, Firefox 132 and WebKit 18.2: all 14 presets, every edge drawn, the comparison link, a link to a step, keyboard control, phone layout, no console errors |
+| `scripts/perf.ts` | see §14.3 |
 
 Step time (µs per training step, Adam, batch 32 unless noted):
 
@@ -454,7 +455,7 @@ In the browser the presets train at 300 to 650 steps per second at the default 1
 | CMake as the build | A Makefile as the primary build; CMake kept | One file covers native, PyTorch, WASM and benchmarks with no generator; CMake still builds and runs the tests |
 | Spirals: 2 × 16 tanh | 2 × 32 ReLU, batch 32 | Tanh networks sat on a plateau (val loss 0.65 after 4,000 steps); ReLU 32-32 reaches 0.03 |
 | Random draws for the datasets | Each draw in its own statement | Two draws in one argument list run in an order that differs between g++ and clang, which would have made the WASM dataset differ from the native one |
-| `requires_grad`, `no_grad`, `detach` (PLAN 1A) | `requiresGrad` on inputs and parameters only | Nothing in Phase 1 needs the other two; they belong with the builder in Phase 2 |
+| `requires_grad`, `no_grad`, `detach` (PLAN 1A) | `requiresGrad` on inputs and parameters only | Nothing in Phase 1 needed the other two. Built afterwards, see §14.1 |
 | Module zoom level | Not built | PLAN lists scalar and tensor zoom for Phase 1; `module` is set on preset nodes for Phase 2 |
 
 ## 13. Audit fixes
@@ -480,3 +481,60 @@ An audit after Phase 1 looked for overflow, memory exhaustion, graph building er
 | Race view: button stayed on "Pause" after every racer finished; raced on in a hidden tab | Wrong state, wasted work | Counts stopped racers; pauses when the tab is hidden |
 
 The audit also checked that the single-number graph builds and matches the tensor graph for every op case, including edge cases (an input used twice, `x @ xᵀ`, rank-4 broadcasting, keepdim, reshape to a scalar); all passed, so no graph-building bug was found there.
+
+## 14. Solidifying Phase 1
+
+Work after the audit, on the gaps between Phase 1 as built and PLAN/PRD: E10, V8, the accessibility and browser requirements of PRD §9, and the frame budget of PLAN §5.
+
+### 14.1 `detach` and `no_grad` (PRD E10)
+
+| Piece | Built |
+|---|---|
+| Graph | `Op::Detach` appended to the op table, so existing op numbers hold; `Attrs::noGrad` on any computed node (refused on sources) |
+| Compile | `requiresGrad` stops at both. The loss's gradient travels only through nodes that need one, so a parameter seen only through a detach gets no buffer, no contributions and no update step |
+| Both AD modes and the scalar view | Stop at the same place; the scalar view emits one detach per element and marks every computed piece of a no_grad node |
+| C API | `ag_attrs.no_grad`; the struct grows from 48 to 52 bytes and `AG_ABI_VERSION` becomes 2, so a cached old engine is refused by a new page |
+| Web | `detach` and `noGrad` in GraphSpec; a `detach` stepping preset (`d = detach(a)·b + a`, so a's gradient is 1, not 4); edges into nodes where the gradient stops are dashed and the node says "no ∂" |
+| Tests | Reverse, forward and scalar views give the stopped gradient; an untrained detached parameter under Adam; a no_grad loss trains as a no-op; no_grad on a parameter is refused at that node; both cases compared with PyTorch (`.detach()` on the node's inputs) |
+
+### 14.2 Backward order and the ready queue (PRD V8)
+
+During a Backward or Train pass the inspector lists the nodes in the order they pass gradient back, then the leaves. Each is waiting (with k of n contributions when it has several uses), ready (complete, not yet passed on: PyTorch's ready queue), passing back, or done. Over 40 nodes it shows counts instead of the list. `backwardQueue()` in `views/graph.ts` is a pure function of the schedule and the cursor.
+
+### 14.3 Frame budget
+
+`scripts/perf.ts` measures, in a real browser, the interval between animation frames while each training preset runs at 10 and 100 steps per frame and while each race runs, and the time from a key press to the next step on screen.
+
+The first measurement failed the budget: at the default speed 17–40% of frames took 33 ms. The client acknowledged each frame on receipt, so a fast worker kept the page redrawing back to back, and each redraw re-rendered the React Flow diagram (hiding it halved the late frames). Now frames are acknowledged on the next display frame, the diagram updates at most ten times a second while training, and `GraphCanvas` is memoised.
+
+Chromium 131, headless, on a machine running about 3× slower than when §11's benchmark was taken (the WASM benchmark under node moved from 407 to 1,268 µs per step for 2 × 32 in this session, so compare rows here with each other, not with §11):
+
+| Run | p95 frame | Late frames | Steps/s |
+|---|---|---|---|
+| Training presets, 10 steps per frame | 16.7–16.8 ms | 0–3% (was 17–40%) | 337–564 |
+| Training presets, 100 steps per frame | 16.7–16.8 ms | 0–2% | 1,391–5,132 |
+| Races | 16.7–16.8 ms | 0–1% | |
+| One step, MLP as tensors (13 nodes) | 23 ms | | p50 10 ms |
+| One step, MLP as single numbers (243 nodes) | 68 ms | | p50 48 ms |
+
+The cost: at 100 steps per frame throughput is lower than before (moons 3.9k against 5.8k steps/s), since the worker no longer runs ahead of the screen. The earlier figure came with dropped frames.
+
+Other browsers, same machine: Firefox 132 holds its frames (headless Firefox runs at 144 Hz, so its late-frame share is not comparable) but trains 2–4× slower, because the engine itself is 2–4× slower there (the WASM benchmark in the page: 5,550 against 1,306 µs per step for 2 × 32). That is Playwright's patched Firefox; no stock Firefox was available to confirm it. WebKit 18.2 on Windows draws an idle page at 32 fps, so its frame numbers say nothing about Safari; its engine speed is within 15% of Chromium.
+
+### 14.4 Accessibility (PRD §9)
+
+| Requirement | Done |
+|---|---|
+| Colours that do not rely on red against green | Checked under simulated protanopia, deuteranopia and tritanopia (Machado 2009). Three pairs failed: two racer colours (ΔE 6.8), two layer colours (5.8), tangent against forward (9.7). Now four series colours with every pair over ΔE 25; layers on an indigo-to-orange ramp whose lightness rises with depth for every kind of colour vision; tangent #882255; paths on the loss surface over a light halo; the mode comparison says "They agree"/"They differ" instead of green against red. `colors.test.ts` reads the real values and keeps this checked |
+| Keyboard control of the stepper | ← → step, space plays, Home and End jump; ignored while typing in a field or on a focused button. Transport buttons have labels, toggles `aria-pressed`, the step counter is announced, focus is visible |
+
+### 14.5 Bugs found on the way
+
+| Bug | Effect | Fix |
+|---|---|---|
+| Graph nodes had no `measured` size | React Flow drops handle positions for such nodes on every new node array, and edges are drawn only between measured handles, so about one load in three showed a graph with no edges, for good | Pass the layout's size as `measured`; the smoke test counts drawn edges for every stepping preset |
+| A link with `i=N` opened at step 0 | Setting the default forward-mode direction restarted the pass, and the superseded run had already used up the linked step | Only the run that is still current uses it |
+| Frames acknowledged on receipt | See §14.3 | Acknowledged on the next display frame |
+
+Not a code bug, but it cost time: on this machine Git for Windows' `/mingw64/bin` is on `PATH` before MSYS2's `ucrt64/bin`, so the native test binary loaded an older `libstdc++-6.dll` and crashed while writing its PyTorch dump. With `C:\msys64\ucrt64\bin` first it passes.
+

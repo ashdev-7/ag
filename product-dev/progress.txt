@@ -488,3 +488,95 @@ ANSWERED
     C:\Users\YASH\OneDrive\Desktop\New folder\ag                new work
   The editor was still open on autograd-engine. Open the ag folder
   (VS Code: File > Open Folder, or `code "...\New folder\ag"`).
+
+
+------------------------------------------------------------------------
+ENTRY 8   2026-10-14 to 2026-10-15
+------------------------------------------------------------------------
+ASKED
+  The project moved to a new location; pick up the context from
+  product-dev. Then: solidify Phase 1 before Phase 2. From a list of gaps
+  between Phase 1 as built and PLAN/PRD, chosen: engine completeness,
+  accessibility and browsers, tests and performance. (Release prep, which
+  needs a product name, a licence and switching on GitHub Pages, was left
+  for later.)
+
+ANSWERED
+  1. Engine completeness
+     - detach and no_grad (PRD E10, deferred in entry 5). Detach is a new
+       op appended to the table, so existing op numbers hold; no_grad is a
+       flag on any computed node. Gradients stop at the same place in
+       reverse mode, forward mode and the single-number view; a parameter
+       seen only through a detach is not trained. The C struct for node
+       attributes grew, so the engine ABI version went from 1 to 2.
+     - New stepping preset "d = detach(a)·b + a": a's gradient is 1, not 4.
+       Edges into a node where the gradient stops are dashed.
+     - Backward order panel (PRD V8): every node waiting (k of n
+       contributions), ready, passing back or done. The ready ones are
+       PyTorch's ready queue.
+
+  2. Accessibility and browsers
+     - Colours checked under simulated protanopia, deuteranopia and
+       tritanopia. Three pairs were too close (two racers, two layers,
+       tangent vs forward). New series colours, a light-to-dark ramp for
+       layers (lightness rises with depth for everyone), a new tangent
+       colour, halos on race paths, and "They agree / They differ" text
+       instead of green vs red. A unit test keeps this checked.
+     - Keyboard: arrows step, space plays, Home/End jump. Labels for
+       screen readers, visible focus.
+     - The smoke test now runs in Chromium, Firefox and WebKit, locally and
+       in CI. 61 checks pass in each.
+
+  3. Tests and performance
+     - scripts/perf.ts measures frame times in a real browser. The first
+       run failed the 16 ms budget: at the default speed up to 40% of frames
+       were late. Fixed by acknowledging frames on the next display frame
+       instead of on receipt, and updating the network diagram at most ten
+       times a second while training. Now at most 3% late, p95 16.8 ms, on
+       every preset. Cost: at 100 steps per frame training is slower than
+       before (it was faster only by dropping frames).
+     - Web unit tests 13 -> 42: every local derivative the inspector prints
+       against finite differences, every op has an explanation, colour
+       scales, highlighting, frame pacing (this test fails on the old code).
+     - Engine tests 154 -> 171.
+
+  4. Bugs found on the way
+     - About one page load in three drew the graph with no edges at all,
+       permanently (React Flow drops handle positions for nodes without a
+       measured size). Fixed; the smoke test now counts edges.
+     - A link to a step (i=7) opened at step 0. Fixed.
+     - Frames acknowledged on receipt (see 3).
+
+  5. Not verified, and why
+     - Firefox trains 2-4x slower than Chromium here because the engine
+       itself is 2-4x slower in Playwright's patched Firefox. No regular
+       Firefox is installed on this machine, so it is unknown whether real
+       Firefox does the same.
+     - Playwright's WebKit on Windows draws even an idle page at 32 fps, so
+       it says nothing about Safari's frame rate; it is used for
+       correctness only. Safari itself was not tested.
+     - The machine ran about 3x slower in this session than when the
+       benchmarks in DESIGN_PHASE1.md §11 were taken, so the new numbers
+       are comparable with each other, not with §11.
+     - CI changes have not been run on GitHub yet; nothing was pushed.
+
+  6. Environment notes
+     - The Desktop CLAUDE.md (AirStay) still does not apply here.
+     - Native tests: put C:\msys64\ucrt64\bin first on PATH, or the test
+       binary loads Git's older libstdc++ and crashes (README updated).
+     - make from this shell cannot create temp files; the engine was built
+       by calling g++ and em++ directly with the Makefile's flags.
+
+  7. Commits
+     a489273 feat: detach and no_grad
+     63d8a9b fix(web): graph edges missing on about one load in three
+     8bf6890 feat(web): backward order and ready queue; links open at their step
+     e31a979 feat(web): colour-blind safe colours and keyboard control of the stepper
+     4465b94 test: smoke test in Firefox and WebKit as well as Chromium
+     35f6160 perf(web): hold 60 fps while training
+     d439822 test(web): view logic and frame pacing
+     plus this entry and DESIGN_PHASE1.md §14 (docs)
+
+  8. Next
+     Release prep: product name, licence, push, watch CI, switch on GitHub
+     Pages. Then Phase 2.

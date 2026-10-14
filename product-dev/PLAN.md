@@ -2,7 +2,7 @@
 
 A two-phase plan to turn this autograd engine into a browser product where people build neural networks by dragging and connecting nodes, then watch every number move during training. The companion document is [PRD.md](PRD.md), which says what the product is and for whom; this document says how it gets built.
 
-Status: revised 2026-10-14. Phase 1 is implemented in the repository https://github.com/ashdev-7/ag (milestones 1A, 1B and 1C; deployment is a configured workflow waiting for GitHub Pages to be switched on). The design, its results and the changes made while building are in [DESIGN_PHASE1.md](DESIGN_PHASE1.md). Phase 2 has not started.
+Status: revised 2026-10-15. Phase 1 is implemented, including `no_grad` and `detach` (added after the first Phase 1 commit, DESIGN_PHASE1.md §14), in the repository https://github.com/ashdev-7/ag (milestones 1A, 1B and 1C; deployment is a configured workflow waiting for GitHub Pages to be switched on). The design, its results and the changes made while building are in [DESIGN_PHASE1.md](DESIGN_PHASE1.md). Phase 2 has not started.
 
 ## 1. The central idea
 

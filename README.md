@@ -13,8 +13,8 @@ product-dev/  plan, PRD, Phase 1 design, and the running progress log
 
 ## What Phase 1 does
 
-- **Step through** four presets (an expression, one neuron, broadcasting, a
-  two-layer MLP) micro-step by micro-step: every forward value, the seed, each
+- **Step through** five presets (an expression, the same with a `detach`, one
+  neuron, broadcasting, a two-layer MLP) micro-step by micro-step: every forward value, the seed, each
   gradient contribution along each edge, each parameter update. Scrub back and
   forth; going back is exact.
 - **Two zoom levels.** Tensors, or every element as its own node, with the
@@ -54,7 +54,9 @@ node scripts/perf.ts      # frame times while training, racing and stepping (aft
 ```
 
 On Windows with MSYS2, put `C:\msys64\usr\bin` first on `PATH` for `make`, and
-use `make wasm EMCXX="python <emsdk>/upstream/emscripten/em++.py"`.
+use `make wasm EMCXX="python <emsdk>/upstream/emscripten/em++.py"`. Run the native
+test binaries with `C:\msys64\ucrt64\bin` before Git's `mingw64\bin` on `PATH`:
+otherwise they load Git's older `libstdc++-6.dll` and crash.
 
 ## Deploy
 
