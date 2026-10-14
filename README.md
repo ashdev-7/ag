@@ -50,6 +50,7 @@ npm run build             # dist/
 node scripts/smoke.ts shots firefox  # every preset in a headless browser: chromium (default), firefox or webkit
                           # (after build; needs `npx playwright install chromium firefox webkit`)
 npm run record            # regenerate the recorded runs in public/recordings
+node scripts/perf.ts      # frame times while training, racing and stepping (after build)
 ```
 
 On Windows with MSYS2, put `C:\msys64\usr\bin` first on `PATH` for `make`, and

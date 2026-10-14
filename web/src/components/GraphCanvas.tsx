@@ -150,11 +150,13 @@ function Inner(props: GraphCanvasProps) {
 const graphKeys = new WeakMap<GraphSpec, number>();
 let nextGraphKey = 1;
 
-export function GraphCanvas(props: GraphCanvasProps) {
+// memo: the training view re-renders every frame, the diagram only when its
+// own inputs change
+export const GraphCanvas = memo(function GraphCanvas(props: GraphCanvasProps) {
   if (!graphKeys.has(props.spec)) graphKeys.set(props.spec, nextGraphKey++);
   return (
     <ReactFlowProvider key={graphKeys.get(props.spec)}>
       <Inner {...props} />
     </ReactFlowProvider>
   );
-}
+});

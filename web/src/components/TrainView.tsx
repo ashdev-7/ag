@@ -3,7 +3,7 @@
 // drawn here and then acknowledged. A second run with another optimizer can
 // train beside the first from identical starting weights.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
@@ -41,6 +41,27 @@ interface RunView {
   step: number;
   sps: number;
   fault?: EngineError;
+}
+
+/**
+ * `value`, passed on at most every `ms`; the latest value always arrives.
+ * The network diagram is the most expensive thing on the page to redraw, and
+ * ten updates a second read as smoothly as sixty for numbers on a graph.
+ */
+function useThrottled<T>(value: T, ms: number): T {
+  const [shown, setShown] = useState(value);
+  const last = useRef(0);
+  useEffect(() => {
+    const show = () => {
+      last.current = performance.now();
+      setShown(value);
+    };
+    const wait = last.current + ms - performance.now();
+    if (wait <= 0) return show();
+    const t = setTimeout(show, wait);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return shown;
 }
 
 const newRun = (optim: OptimConfig): RunView => ({ optim, history: emptyHistory(), values: {}, grads: {}, step: 0, sps: 0 });
@@ -229,6 +250,9 @@ export function TrainView(props: {
   const shapes = useMemo(() => Object.fromEntries((sessions[0]?.info.nodes ?? []).map((n) => [n.id, n.shape])), [sessions]);
   const labels = useMemo(() => (data ? Array.from({ length: data.n }, (_, i) => (data.y[i * data.yDim + 1] > 0.5 ? 1 : 0)) : []), [data]);
 
+  const nodeStats = useMemo(() => ({ values: runs[0]?.values ?? {}, grads: runs[0]?.grads ?? {} }), [runs]);
+  const graphStats = useThrottled(nodeStats, running ? 100 : 0);
+
   if (!runs.length) return <div className="loading">Building the network…</div>;
   const a = runs[0];
 
@@ -265,7 +289,7 @@ export function TrainView(props: {
         <section className="panel graph-panel">
           <h4>Network <span className="muted">edge width: gradient size</span></h4>
           <div className="graph-wrap small">
-            <GraphCanvas spec={preset.spec} shapes={shapes} highlight={highlight} values={a.values} grads={a.grads}
+            <GraphCanvas spec={preset.spec} shapes={shapes} highlight={highlight} values={graphStats.values} grads={graphStats.grads}
               selected={selected} onSelect={setSelected} edgeWeights faultNode={a.fault?.nodeId} />
           </div>
         </section>

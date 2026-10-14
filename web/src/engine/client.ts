@@ -84,6 +84,16 @@ type Pending = { resolve: (r: Result<unknown>) => void; timer: ReturnType<typeof
 
 const LONG_CALLS: Partial<Record<RequestType, number>> = { init: 30000, train: 60000, lossSurface: 20000, scalarize: 15000 };
 
+/**
+ * Run `f` at the start of the next display frame, after this frame's work has
+ * been rendered; the worker then computes while the browser paints. In a page
+ * without frames (tests), soon.
+ */
+function nextFrame(f: () => void) {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(f);
+  else setTimeout(f, 0);
+}
+
 export function createEngineClient(options: EngineClientOptions): EngineClient {
   const timeoutMs = options.timeoutMs ?? 5000;
   const maxRestarts = options.maxRestarts ?? 2;
@@ -219,8 +229,12 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
       try {
         opts.onFrame(msg);
       } finally {
-        // acknowledged after the page has drawn it: one frame in flight
-        if (this.runOpts) void this.call({ type: 'ackFrame', session: this.key, seq: msg.seq });
+        // acknowledged on the next display frame: one frame in flight and at
+        // most one per display frame. acking on receipt let a fast worker keep
+        // the page drawing back to back, which dropped every other frame
+        nextFrame(() => {
+          if (this.runOpts) void this.call({ type: 'ackFrame', session: this.key, seq: msg.seq });
+        });
       }
     }
 
