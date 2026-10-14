@@ -48,6 +48,11 @@ try {
     await page.waitForSelector('.engine-ready', { timeout: 20000 });
     if (p.mode === 'step') {
       await page.waitForSelector('.react-flow__node');
+      // every edge, drawn: a race in React Flow once left graphs with none
+      const wantEdges = p.spec.nodes.reduce((k, n) => k + n.inputs.length, 0);
+      await sleep(500);
+      const edges = await page.locator('.react-flow__edge-path').count();
+      check(edges === wantEdges, `${p.id}: all ${wantEdges} edges drawn (${edges})`);
       for (let k = 0; k < 6; ++k) await page.getByTitle('One step forward').click();
       const counter = await page.locator('.transport .counter').textContent();
       check(counter?.startsWith('6 /') ?? false, `${p.id}: six steps forward (${counter})`);
@@ -65,7 +70,9 @@ try {
       const match = await page.locator('.modes .ok').count();
       check(match === 1, `${p.id}: forward mode matches reverse mode`);
       await page.getByRole('button', { name: 'Single numbers' }).click();
-      await sleep(800);
+      // the scalar graph is built in the worker and laid out; give it time
+      await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length > 0, null, { timeout: 15000 }).catch(() => {});
+      await sleep(300);
       const scalarNodes = await page.locator('.react-flow__node').count();
       check(scalarNodes > 0, `${p.id}: single-number view has ${scalarNodes} nodes`);
       await page.getByTitle('To the end').click();

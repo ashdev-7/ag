@@ -85,13 +85,17 @@ function Inner(props: GraphCanvasProps) {
   );
   const byId = useMemo(() => new Map(spec.nodes.map((n) => [n.id, n])), [spec]);
   // sizes are fixed by the layout, so React Flow never has to measure a node
-  // before showing it or fitting the view
+  // before showing it or fitting the view. `measured` matters too: without it
+  // React Flow drops the handle positions every time it receives a new node
+  // array, and edges are only drawn between measured handles. Losing that
+  // race left a graph with no edges on about one load in three
   const nodes: Node<OpData>[] = layout.nodes.map((n) => ({
     id: n.id,
     type: 'op',
     position: { x: n.x, y: n.y },
     width: n.width,
     height: n.height,
+    measured: { width: n.width, height: n.height },
     draggable: false,
     data: {
       spec: byId.get(n.id)!,
