@@ -73,8 +73,10 @@ Status sessionCreate(const Graph& g, const SessionConfig& cfg, std::unique_ptr<S
 // re-initialise parameters, optimizer state and batch order from a seed
 Status sessionReset(Session* s, uint64_t seed);
 
-// replace the optimizer; resets its state, keeps parameters
+// replace the optimizer; resets its state, keeps parameters. both this and
+// importing parameters cancel a stepped training pass that is in progress
 Status sessionSetOptimizer(Session* s, const OptimConfig& cfg);
+Status sessionImportParams(Session* s, std::span<const float> in);
 
 // ── stepping (the stepper UI) ────────────────────────────────────────────────
 

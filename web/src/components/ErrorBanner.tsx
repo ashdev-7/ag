@@ -30,6 +30,7 @@ export function describe(e: EngineError): string {
     case 'NonFinite': return `A value became nan or inf${e.nodeId ? ` at ${e.nodeId}` : ''}. The step was undone.`;
     case 'ShapeMismatch': return `Shapes do not fit${e.nodeId ? ` at ${e.nodeId}` : ''}.`;
     case 'LimitExceeded': return 'Too large for the browser engine.';
+    case 'OutOfMemory': return 'The engine is out of memory. Close a comparison or pick a smaller preset.';
     case 'WorkerCrashed':
     case 'Timeout': return 'The engine stopped responding and is restarting. The run starts again from step 0.';
     case 'WasmLoadFailed': return 'The engine could not start in this browser. Showing recorded runs instead.';

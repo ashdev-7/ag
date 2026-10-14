@@ -1,6 +1,8 @@
 #include "ag/graph.hpp"
 #include "ag/ops.hpp"
 
+#include <cmath>
+
 using namespace std;
 
 namespace ag {
@@ -81,6 +83,10 @@ Status validate(const Graph& g, const Limits& limits) {
         for (int32_t i = 0; i < node.numInputs; ++i)
             if (node.inputs[i] < 0 || node.inputs[i] >= id)
                 return makeError(Code::InvalidGraph, "input refers to a node that does not come before it", id, i);
+        // a nan exponent or init scale would only surface later as a nan
+        // somewhere else; say where it comes from instead
+        if (!std::isfinite(node.attrs.scalar) || !std::isfinite(node.attrs.initScale))
+            return makeError(Code::InvalidGraph, "attributes must be finite numbers", id);
         if (node.attrs.role != Role::None && node.op != Op::Input)
             return makeError(Code::InvalidGraph, "only an input can carry a data role", id);
         features += node.attrs.role == Role::Features;

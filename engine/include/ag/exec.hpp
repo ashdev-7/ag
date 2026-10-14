@@ -7,6 +7,7 @@
 #include "ag/program.hpp"
 #include "ag/rng.hpp"
 
+#include <cstdlib>
 #include <vector>
 
 namespace ag {
@@ -37,11 +38,58 @@ struct TangentSeed {
 
 struct Optimizer;   // optim.hpp
 
+// the arena's storage: zeroed floats from calloc, owned, move-only.
+// not a std::vector because the WASM build has no exceptions, so a vector
+// that cannot allocate aborts the whole module; calloc returns null, which
+// execInit reports as OutOfMemory. (asking malloc first and then using a
+// vector does not work: the compiler may delete an unused malloc/free pair
+// and assume it succeeded)
+class FloatBuffer {
+public:
+    FloatBuffer() = default;
+    ~FloatBuffer() { std::free(ptr_); }
+    FloatBuffer(FloatBuffer&& o) noexcept : ptr_(o.ptr_), n_(o.n_) { o.ptr_ = nullptr; o.n_ = 0; }
+    FloatBuffer& operator=(FloatBuffer&& o) noexcept {
+        if (this != &o) {
+            std::free(ptr_);
+            ptr_ = o.ptr_;
+            n_ = o.n_;
+            o.ptr_ = nullptr;
+            o.n_ = 0;
+        }
+        return *this;
+    }
+    FloatBuffer(const FloatBuffer&) = delete;
+    FloatBuffer& operator=(const FloatBuffer&) = delete;
+
+    // false if out of memory; the old contents are released either way
+    bool allocate(size_t n) {
+        std::free(ptr_);
+        ptr_ = n ? static_cast<float*>(std::calloc(n, sizeof(float))) : nullptr;
+        n_ = ptr_ ? n : 0;
+        return ptr_ || n == 0;
+    }
+
+    float*       data() { return ptr_; }
+    const float* data() const { return ptr_; }
+    size_t       size() const { return n_; }
+    float*       begin() { return ptr_; }
+    float*       end() { return ptr_ + n_; }
+    const float* begin() const { return ptr_; }
+    const float* end() const { return ptr_ + n_; }
+    float&       operator[](size_t i) { return ptr_[i]; }
+    float        operator[](size_t i) const { return ptr_[i]; }
+
+private:
+    float* ptr_ = nullptr;
+    size_t n_ = 0;
+};
+
 struct Exec {
     const Program*     prog = nullptr;
     ParamStore*        params = nullptr;
     Optimizer*         optim = nullptr;    // required for PassKind::Train only
-    std::vector<float> arena;
+    FloatBuffer        arena;
     PassKind           pass = PassKind::Forward;
     TangentSeed        seed;
     int32_t            cursor = 0;         // next step to execute

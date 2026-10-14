@@ -120,7 +120,9 @@ export function StepView(props: {
   // (re)start the pass whenever the session, pass or direction changes
   useEffect(() => {
     if (!active) return;
-    if (pass === 'forwardMode' && !tangentSeed) return;
+    // after a zoom change the old seed names a node of the other graph; wait
+    // for the default seed of this graph instead of starting a doomed pass
+    if (pass === 'forwardMode' && (!tangentSeed || !active.info.nodes.some((n) => n.id === tangentSeed.nodeId))) return;
     const gen = ++generation.current;
     setPlaying(false);
     (async () => {

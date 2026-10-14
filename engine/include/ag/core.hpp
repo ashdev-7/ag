@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <string>
 
@@ -99,6 +100,16 @@ struct ConstTensorView {
     const float* data = nullptr;
     Shape        shape;
 };
+
+// double to float, saturating to ±inf. a plain conversion of a value outside
+// float's range is undefined behaviour; sums taken in double can get there
+// on a diverging run, and the executor must see inf, not garbage
+inline float toFloat(double x) {
+    constexpr double kMax = std::numeric_limits<float>::max();
+    if (x > kMax) return std::numeric_limits<float>::infinity();
+    if (x < -kMax) return -std::numeric_limits<float>::infinity();
+    return static_cast<float>(x);   // in range, or nan
+}
 
 // ── statistics ───────────────────────────────────────────────────────────────
 // what the UI needs per node per frame, so it never has to copy whole tensors

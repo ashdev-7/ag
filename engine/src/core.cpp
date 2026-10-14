@@ -44,9 +44,12 @@ Shape makeShape(span<const int32_t> dims) {
     return s;
 }
 
+// saturates at INT64_MAX instead of overflowing, so a caller that has not
+// validated the shape still gets "too big", never a small wrapped number
 int64_t numel(const Shape& s) {
     int64_t n = 1;
-    for (int32_t i = 0; i < s.rank; ++i) n *= s.dim[i];
+    for (int32_t i = 0; i < s.rank; ++i)
+        if (__builtin_mul_overflow(n, int64_t(s.dim[i]), &n)) return INT64_MAX;
     return n;
 }
 
@@ -66,15 +69,23 @@ string toString(const Shape& s) {
     return out + "]";
 }
 
+// the size is checked as it is multiplied: four int32 dimensions can reach
+// 2^124, and a wrapped product would let a huge tensor pass as a tiny one.
+// stopping as soon as the running product passes the limit keeps every
+// intermediate below 2^32 * 2^31
 Status validateShape(const Shape& s, const Limits& limits) {
     if (s.rank < 0 || s.rank > kMaxRank)
         return makeError(Code::InvalidArgument, "rank must be between 0 and " + to_string(kMaxRank));
     for (int32_t i = 0; i < s.rank; ++i)
         if (s.dim[i] <= 0)
             return makeError(Code::InvalidArgument, "dimension " + to_string(i) + " must be positive in " + toString(s));
-    if (numel(s) > static_cast<int64_t>(limits.maxTensorElems))
-        return makeError(Code::LimitExceeded, "tensor " + toString(s) + " exceeds " +
-                                              to_string(limits.maxTensorElems) + " elements");
+    int64_t n = 1;
+    for (int32_t i = 0; i < s.rank; ++i) {
+        n *= s.dim[i];
+        if (n > static_cast<int64_t>(limits.maxTensorElems))
+            return makeError(Code::LimitExceeded, "tensor " + toString(s) + " exceeds " +
+                                                  to_string(limits.maxTensorElems) + " elements");
+    }
     return {};
 }
 
@@ -121,18 +132,22 @@ void computeStats(ConstTensorView t, Stats* out) {
         double mean = sum / finite;
         s.min = lo;
         s.max = hi;
-        s.mean = float(mean);
-        s.std = float(sqrt(max(0.0, sumSq / finite - mean * mean)));
-        s.l2 = float(sqrt(sumSq));
+        s.mean = toFloat(mean);
+        s.std = toFloat(sqrt(max(0.0, sumSq / finite - mean * mean)));
+        s.l2 = toFloat(sqrt(sumSq));
         s.fracZero = float(double(zeros) / double(n));
         s.histLo = lo;
         s.histHi = hi;
-        float width = hi - lo;
+        // in double: for values near ±3e38, hi − lo overflows float to inf and
+        // (x − lo) / width becomes nan, and converting nan to int is undefined
+        // (in WebAssembly it can trap). in double both stay finite
+        double width = double(hi) - double(lo);
         for (int64_t i = 0; i < n; ++i) {
             float x = t.data[i];
             if (!isfinite(x)) continue;
-            int bin = width > 0 ? int((x - lo) / width * kHistBins) : kHistBins / 2;
-            s.hist[clamp(bin, 0, kHistBins - 1)]++;
+            double pos = width > 0 ? (double(x) - lo) / width * kHistBins : kHistBins / 2;
+            int bin = pos >= kHistBins ? kHistBins - 1 : pos > 0 ? int(pos) : 0;
+            s.hist[bin]++;
         }
     }
     *out = s;

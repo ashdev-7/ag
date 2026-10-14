@@ -2,7 +2,7 @@
 // loss, all starting at the same point. The background is the loss surface
 // itself, swept by the engine; each frame adds a point to each path.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import type { OptimConfig } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
@@ -54,6 +54,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
 
   const run = () => {
     setRunning(true);
+    let stopped = 0;
     sessions.forEach((s, i) =>
       s.run({
         watch: { stats: [], tensors: [{ nodeId: race.x, which: 'value' }, { nodeId: race.y, which: 'value' }] },
@@ -66,6 +67,8 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
           })));
         },
         onStopped: (st) => {
+          // the button goes back to "Race" once every racer has stopped
+          if (++stopped === sessions.length) setRunning(false);
           setRacers((rs) => rs.map((r, k) => (k !== i ? r : { ...r, done: st.reason === 'fault' ? 'diverged' : 'finished' })));
           if (st.error && st.error.code !== 'NonFinite') onBanner({ kind: 'error', text: describe(st.error), error: st.error });
         },
@@ -73,10 +76,17 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
     );
   };
 
-  const pause = () => {
+  const pause = useCallback(() => {
     setRunning(false);
     sessions.forEach((s) => s.pause());
-  };
+  }, [sessions]);
+
+  // a hidden tab stops the race, as it stops training
+  useEffect(() => {
+    const onHide = () => document.hidden && pause();
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [pause]);
 
   const setOptim = (i: number, o: OptimConfig) => {
     setOptims((os) => os.map((x, k) => (k === i ? o : x)));

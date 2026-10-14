@@ -265,7 +265,8 @@ export class EngineSession {
     const { m, scratch } = this.e;
     const status = m._ag_session_train(this.handle, steps, scratch);
     const result: TrainResult = {
-      step: ri32(m, scratch) + ri32(m, scratch + 4) * 2 ** 32,
+      // the low word is unsigned: read as int32 it goes negative past 2^31 steps
+      step: m.HEAPU32[scratch >> 2] + ri32(m, scratch + 4) * 2 ** 32,
       stepsRun: ri32(m, scratch + 8),
       loss: rf32(m, scratch + 12),
       gradNorm: rf32(m, scratch + 16),
@@ -318,6 +319,9 @@ export class EngineSession {
     const node = g.nodeId ? this.node(g.nodeId) : -1;
     const count = g.res * g.res;
     return withBuffer(this.e.m, count * 4, (p) => {
+      // a model with one input feature fills only `res` values; the rest must
+      // not be whatever malloc left there
+      this.e.m.HEAPF32.fill(NaN, p >> 2, (p >> 2) + count);
       writeGrid(this.e.m, this.e.scratch, g, node);
       this.check(this.e.m._ag_session_eval_grid(this.handle, this.e.scratch, p, count));
       return { res: g.res, data: this.e.m.HEAPF32.slice(p >> 2, (p >> 2) + count) };
@@ -395,6 +399,16 @@ function readInfo(e: Engine, handle: number, ids: string[], key: number): Sessio
   return { session: key, nodes, schedules, paramCount: ri32(m, scratch) };
 }
 
+/** Wrap a new engine session; if reading its plan fails, free it rather than leak it. */
+function adopt(e: Engine, handle: number, ids: string[], key: number): EngineSession {
+  try {
+    return new EngineSession(e, handle, ids, key);
+  } catch (err) {
+    e.m._ag_session_free(handle);
+    throw err;
+  }
+}
+
 /** Validate, build the graph, create the session. The graph is freed either way. */
 export function createSession(e: Engine, spec: GraphSpec, config: SessionConfig, key: number): EngineSession {
   const issues = validateSpec(spec);
@@ -416,7 +430,7 @@ export function createSession(e: Engine, spec: GraphSpec, config: SessionConfig,
     for (const o of plan.outputs) check(e, m._ag_graph_add_output(graph, o), plan.toSpec);
     writeSessionConfig(m, scratch, config);
     check(e, m._ag_session_new(graph, scratch, scratch + 128), plan.toSpec);
-    return new EngineSession(e, ri32(m, scratch + 128), plan.toSpec, key);
+    return adopt(e, ri32(m, scratch + 128), plan.toSpec, key);
   } finally {
     m._ag_graph_free(graph);
   }
@@ -429,14 +443,20 @@ export function scalarize(s: EngineSession, key: number): { session: EngineSessi
   return withBuffer(m, cap * 8, (p) => {
     s.check(m._ag_session_scalarize(s.handle, scratch, p, p + cap * 4, cap));
     const handle = ri32(m, scratch);
-    check(s.e, m._ag_session_node_count(handle, scratch));
+    const fail = (status: number) => {
+      if (status === 0) return;
+      const err = lastError(s.e, status);
+      m._ag_session_free(handle);
+      throw new EngineFault(err);
+    };
+    fail(m._ag_session_node_count(handle, scratch));
     const count = ri32(m, scratch);
     const ids = Array.from({ length: count }, (_, i) => `s${i}`);
-    const session = new EngineSession(s.e, handle, ids, key);
+    const session = adopt(s.e, handle, ids, key);
     const nodes: NodeSpec[] = [];
     const origin: ScalarView['origin'] = [];
     for (let i = 0; i < count; ++i) {
-      check(s.e, m._ag_session_node_op(handle, i, scratch, scratch + 16, scratch + 8));
+      fail(m._ag_session_node_op(handle, i, scratch, scratch + 16, scratch + 8));
       const op = s.e.ops[ri32(m, scratch)].name as OpName;
       const nIn = ri32(m, scratch + 8);
       const inputs = Array.from({ length: nIn }, (_, k) => ids[ri32(m, scratch + 16 + 4 * k)]);

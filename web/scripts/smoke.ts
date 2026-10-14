@@ -66,6 +66,18 @@ try {
       await page.getByTitle('To the end').click();
       await sleep(400);
       await page.screenshot({ path: join(shots, `${p.id}-scalar.png`) });
+      // forward mode, then switching zoom: the seed must follow the graph
+      // without a false error
+      await page.getByRole('button', { name: 'Forward mode', exact: true }).click();
+      await sleep(400);
+      await page.getByRole('button', { name: 'Tensors' }).click();
+      await sleep(600);
+      await page.getByRole('button', { name: 'Single numbers' }).click();
+      await sleep(800);
+      const banner = await page.locator('.banner-error').count();
+      check(banner === 0, `${p.id}: switching zoom in forward mode shows no error`);
+      await page.getByRole('button', { name: 'Backward', exact: true }).click();
+      await page.getByRole('button', { name: 'Tensors', exact: true }).click();
     } else if (p.mode === 'train') {
       await page.waitForSelector('.train-view');
       await page.getByRole('button', { name: 'Run' }).click();

@@ -48,13 +48,15 @@ torch: test
 bench: $(BUILD)/ag_bench
 	./$(BUILD)/ag_bench
 
-# fixed heap, no growth, no exceptions: an out-of-memory is a trap, which the
+# fixed heap, no growth, no exceptions. malloc returns null instead of
+# aborting, so the engine can report OutOfMemory for the big allocations
+# (execInit checks first); anything else that runs out is a trap, which the
 # web client handles by restarting the worker
 wasm:
 	mkdir -p $(WASM_OUT)
 	$(EMCXX) -std=c++20 -O2 -fno-exceptions -Iinclude $(SRC) -o $(WASM_OUT)/ag.mjs \
 	  -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker,node \
-	  -sINITIAL_MEMORY=134217728 -sALLOW_MEMORY_GROWTH=0 -sFILESYSTEM=0 -sSTACK_SIZE=1048576 \
+	  -sINITIAL_MEMORY=134217728 -sALLOW_MEMORY_GROWTH=0 -sABORTING_MALLOC=0 -sFILESYSTEM=0 -sSTACK_SIZE=1048576 \
 	  -sEXPORTED_FUNCTIONS=$(EXPORTS),_malloc,_free \
 	  -sEXPORTED_RUNTIME_METHODS=UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32,HEAPU32,HEAPF32
 

@@ -289,7 +289,7 @@ static void reduce(const float* in, float* out, const Shape& s, const Attrs& att
         for (int64_t i = 0; i < inner; ++i) {
             double acc = 0;
             for (int64_t k = 0; k < len; ++k) acc += in[(o * len + k) * inner + i];
-            out[o * inner + i] = float(mean ? acc / double(len) : acc);
+            out[o * inner + i] = toFloat(mean ? acc / double(len) : acc);
         }
 }
 
@@ -383,7 +383,7 @@ static void softmaxBack(const Shape& s, const Attrs& attrs, const float* y, cons
             double dot = 0;
             for (int64_t k = 0; k < len; ++k) dot += double(v[idx(k)]) * y[idx(k)];
             for (int64_t k = 0; k < len; ++k) {
-                float r = y[idx(k)] * (v[idx(k)] - float(dot));
+                float r = y[idx(k)] * (v[idx(k)] - toFloat(dot));
                 out[idx(k)] = accumulate ? out[idx(k)] + r : r;
             }
         }
@@ -406,7 +406,7 @@ static void mseF(const ForwardArgs& a) {
         double d = double(a.in[0].data[i]) - a.in[1].data[i];
         acc += d * d;
     }
-    a.out.data[0] = float(acc / double(n));
+    a.out.data[0] = toFloat(acc / double(n));
 }
 
 static void mseV(const VjpArgs& a) {
@@ -427,7 +427,7 @@ static void mseJ(const JvpArgs& a) {
         double t = (a.tin[0].data ? a.tin[0].data[i] : 0.0) - (a.tin[1].data ? a.tin[1].data[i] : 0.0);
         acc += 2.0 * d * t;
     }
-    a.tout.data[0] = float(acc / double(n));
+    a.tout.data[0] = toFloat(acc / double(n));
 }
 
 // cross-entropy of softmax(logits) against target probabilities along the last
@@ -450,7 +450,7 @@ static void ceF(const ForwardArgs& a) {
         float lse = rowLse(z, c);
         for (int64_t k = 0; k < c; ++k) acc += double(t[k]) * (lse - z[k]);
     }
-    a.out.data[0] = float(acc / double(rows));
+    a.out.data[0] = toFloat(acc / double(rows));
 }
 
 static void ceV(const VjpArgs& a) {
@@ -479,7 +479,7 @@ static void ceJ(const JvpArgs& a) {
             if (a.tin[1].data) acc += double(lse - z[k]) * a.tin[1].data[r * c + k];
         }
     }
-    a.tout.data[0] = float(acc / double(rows));
+    a.tout.data[0] = toFloat(acc / double(rows));
 }
 
 // ── the op table ─────────────────────────────────────────────────────────────

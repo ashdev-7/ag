@@ -38,10 +38,15 @@ struct Slot {
 static vector<Slot<Graph>>   g_graphs;
 static vector<Slot<Session>> g_sessions;
 
+// the slot number has 16 bits in a handle; past that, handles would alias
+static constexpr size_t kMaxSlots = 0xffff;
+
+// returns 0 (never a valid handle) when the table is full
 template <class T>
 static ag_handle acquire(vector<Slot<T>>& table, unique_ptr<T> object) {
     size_t i = 0;
     while (i < table.size() && table[i].object) ++i;
+    if (i == kMaxSlots) return 0;
     if (i == table.size()) table.push_back({});
     table[i].object = std::move(object);
     return (uint32_t(table[i].generation) << 16) | uint32_t(i + 1);
@@ -178,6 +183,7 @@ void  ag_free(void* p) { free(p); }
 ag_status ag_graph_new(ag_handle* out) {
     AG_OUT(out);
     *out = acquire(g_graphs, make_unique<Graph>());
+    if (!*out) return report(makeError(Code::LimitExceeded, "too many graphs are open; free some"));
     return report({});
 }
 
@@ -191,6 +197,10 @@ ag_status ag_graph_add_node(ag_handle h, int32_t op, const int32_t* inputs, int3
     AG_GRAPH(g, h);
     AG_OUT(out_id);
     if (op < 0 || op >= kOpCount) return bad(__func__, "unknown op " + to_string(op));
+    // compile would refuse a bigger graph anyway; stopping here keeps a
+    // runaway caller from filling the fixed heap first
+    if (g->nodes.size() >= Limits{}.maxNodes)
+        return report(makeError(Code::LimitExceeded, "a graph can have at most " + to_string(Limits{}.maxNodes) + " nodes"));
     if (n_inputs < 0 || n_inputs > kMaxInputs || (n_inputs > 0 && !inputs)) return bad(__func__, "bad input list");
     Attrs a;
     if (attrs) {
@@ -252,6 +262,7 @@ ag_status ag_session_new(ag_handle gh, const ag_session_config* c, ag_handle* ou
     Status st = sessionCreate(*g, cfg, &s);
     if (!st.ok()) return report(std::move(st));
     *out = acquire(g_sessions, std::move(s));
+    if (!*out) return report(makeError(Code::LimitExceeded, "too many sessions"));
     return report({});
 }
 
@@ -455,9 +466,7 @@ ag_status ag_session_export_params(ag_handle h, float* out, int32_t cap) {
 ag_status ag_session_import_params(ag_handle h, const float* in, int32_t n) {
     AG_SESSION(s, h);
     if (!in && n > 0) return bad(__func__, "null input");
-    Status st = importParams(&s->params, span<const float>(in, size_t(max(n, 0))));
-    if (st.ok()) s->stepStart.valid = false;
-    return report(std::move(st));
+    return report(sessionImportParams(s, span<const float>(in, size_t(max(n, 0)))));
 }
 
 ag_status ag_session_scalarize(ag_handle h, ag_handle* out, int32_t* map_source, int32_t* map_element, int32_t cap) {
@@ -476,6 +485,7 @@ ag_status ag_session_scalarize(ag_handle h, ag_handle* out, int32_t* map_source,
         if (map_element) map_element[i] = map.element[i];
     }
     *out = acquire(g_sessions, std::move(scalar));
+    if (!*out) return report(makeError(Code::LimitExceeded, "too many sessions"));
     return report({});
 }
 

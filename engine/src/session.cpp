@@ -133,12 +133,26 @@ Status sessionReset(Session* s, uint64_t seed) {
     return drawBatch(s);
 }
 
+// changing the optimizer or the parameters halfway through a stepped training
+// pass leaves no correct state to roll back to, so that pass is cancelled:
+// advancing or seeking it now fails with InvalidState until a new begin
+static void cancelTrainPass(Session* s) {
+    if (s->train.pass == PassKind::Train) s->train.begun = false;
+    s->stepStart.valid = false;
+}
+
 Status sessionSetOptimizer(Session* s, const OptimConfig& cfg) {
     Optimizer o;
     AG_TRY(optimInit(cfg, s->params, &o));
     s->optim = std::move(o);
     s->cfg.optim = cfg;
-    s->stepStart.valid = false;
+    cancelTrainPass(s);
+    return {};
+}
+
+Status sessionImportParams(Session* s, std::span<const float> in) {
+    AG_TRY(importParams(&s->params, in));
+    cancelTrainPass(s);
     return {};
 }
 
@@ -156,8 +170,10 @@ Status sessionAdvance(Session* s, int32_t n, int32_t* executed) {
     int32_t len = execLength(s->train), before = s->train.cursor;
     Status st = execAdvance(&s->train, n, executed);
     if (s->train.pass == PassKind::Train) {
-        if (!st.ok()) {
-            // a nan never reaches the parameters: undo this step's updates
+        if (st.code == Code::NonFinite) {
+            // a nan never reaches the parameters: undo this step's updates.
+            // only for a nan: any other error (a pass that was never begun)
+            // changed nothing and must not roll anything back
             restoreSnapshot(s, false);
             s->fault = st;
         } else if (before < len && s->train.cursor == len) {
@@ -170,7 +186,8 @@ Status sessionAdvance(Session* s, int32_t n, int32_t* executed) {
 
 Status sessionSeek(Session* s, int32_t index) {
     if (s->train.pass != PassKind::Train) return execSeek(&s->train, index);
-    if (!s->train.begun) return makeError(Code::InvalidState, "call begin before seeking");
+    if (!s->train.begun || !s->stepStart.valid)
+        return makeError(Code::InvalidState, "begin a training step before seeking in it");
     if (index < 0 || index > execLength(s->train)) return makeError(Code::InvalidArgument, "seek index out of range");
     // the batch stays bound in the arena; only parameters and optimizer state
     // need to go back to where the step began
@@ -238,7 +255,7 @@ static Status evalRows(Session* s, int32_t first, int32_t count, float* out) {
         AG_TRY(execRun(&s->eval));
         acc += double(execLoss(s->eval)) * min(B, count - c * B);
     }
-    *out = float(acc / count);
+    *out = toFloat(acc / count);
     return {};
 }
 

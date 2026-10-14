@@ -14,18 +14,22 @@ namespace ag {
 void fillInit(span<float> out, const Shape& shape, Init init, float scale, Rng* rng) {
     float fanIn = shape.rank >= 1 ? float(shape.dim[0]) : 1.0f;
     float fanOut = shape.rank >= 2 ? float(shape.dim[1]) : fanIn;
-    float bound = 0, std = 0;
+    // the kind decides uniform or normal, not the sign of the bound: a
+    // negative scale is a mirror image, not a request for zeros
+    float width = 0;
+    bool uniform = true;
     switch (init) {
         case Init::Zeros:         fill(out.begin(), out.end(), 0.0f); return;
         case Init::Constant:      fill(out.begin(), out.end(), scale); return;
-        case Init::Uniform:       bound = scale; break;
-        case Init::Normal:        std = scale; break;
-        case Init::XavierUniform: bound = scale * sqrt(6.0f / (fanIn + fanOut)); break;
-        case Init::XavierNormal:  std = scale * sqrt(2.0f / (fanIn + fanOut)); break;
-        case Init::HeUniform:     bound = scale * sqrt(6.0f / fanIn); break;
-        case Init::HeNormal:      std = scale * sqrt(2.0f / fanIn); break;
+        case Init::Uniform:       width = scale; break;
+        case Init::Normal:        width = scale; uniform = false; break;
+        case Init::XavierUniform: width = scale * sqrt(6.0f / (fanIn + fanOut)); break;
+        case Init::XavierNormal:  width = scale * sqrt(2.0f / (fanIn + fanOut)); uniform = false; break;
+        case Init::HeUniform:     width = scale * sqrt(6.0f / fanIn); break;
+        case Init::HeNormal:      width = scale * sqrt(2.0f / fanIn); uniform = false; break;
     }
-    for (float& x : out) x = bound > 0 ? rngUniform(rng, -bound, bound) : std * rngNormal(rng);
+    width = fabs(width);
+    for (float& x : out) x = uniform ? rngUniform(rng, -width, width) : width * rngNormal(rng);
 }
 
 Status initParams(const Program& p, uint64_t seed, ParamStore* out) {
@@ -71,7 +75,11 @@ Status execInit(const Program* prog, ParamStore* params, Exec* out) {
     Exec e;
     e.prog = prog;
     e.params = params;
-    e.arena.assign(prog->arenaFloats, 0.0f);   // the only allocation the executor makes
+    // the only allocation the executor makes. calloc (with ABORTING_MALLOC=0
+    // in the WASM build) returns null when the fixed heap is full
+    if (!e.arena.allocate(prog->arenaFloats))
+        return makeError(Code::OutOfMemory, "not enough memory for " + to_string(prog->arenaFloats) +
+                                            " floats of working memory; close other runs or use a smaller model");
     *out = std::move(e);
     return {};
 }
@@ -277,7 +285,7 @@ float execGradNorm(const Exec& e) {
         if (off == kNoBuffer) continue;
         for (uint32_t i = 0; i < pp.size; ++i) acc += double(e.arena[off + i]) * e.arena[off + i];
     }
-    return float(sqrt(acc));
+    return toFloat(sqrt(acc));
 }
 
 } // namespace ag

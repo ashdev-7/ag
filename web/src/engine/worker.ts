@@ -88,10 +88,13 @@ async function handle(req: Request): Promise<Replies[Request['type']]> {
     case 'seek':
       return session(req.session).seek(req.index);
     case 'run': {
-      session(req.session);
+      // maxSteps counts the session's steps, not this run's: read where the
+      // session is (training 0 steps reports it), so a resumed run stops at
+      // the same place a straight one would
+      const current = session(req.session).train(0).step;
       runs.set(req.session, {
-        watch: req.watch, stepsPerFrame: Math.max(1, Math.floor(req.stepsPerFrame)), maxSteps: req.maxSteps,
-        seq: 0, waiting: false, frames: 0, step: 0, clock: { t: performance.now(), step: -1 },
+        watch: req.watch, stepsPerFrame: Math.max(1, Math.min(1000, Math.floor(req.stepsPerFrame) || 1)), maxSteps: req.maxSteps,
+        seq: 0, waiting: false, frames: 0, step: current, clock: { t: performance.now(), step: -1 },
       });
       setTimeout(() => tick(req.session), 0);
       return {};
@@ -147,6 +150,11 @@ function tick(key: number) {
   if (!run || !s || run.waiting) return;
   try {
     const steps = run.maxSteps ? Math.min(run.stepsPerFrame, run.maxSteps - run.step) : run.stepsPerFrame;
+    if (steps <= 0) {
+      runs.delete(key);
+      scope.postMessage({ type: 'stopped', session: key, step: run.step, reason: 'maxSteps' });
+      return;
+    }
     const r = s.train(steps);
     run.step = r.step;
     if (r.fault) {

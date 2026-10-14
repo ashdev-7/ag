@@ -98,5 +98,30 @@ try {
     `a shape error names the spec node and input: ${e.error?.nodeId} input ${e.error?.slot}: ${e.message}`);
 }
 
+// running out of the fixed 128 MB heap is an error, not a trap: open sessions
+// of a ~30 MB model until one is refused, then check the engine still works
+const chain = [{ id: 'p0', op: 'param', inputs: [], shape: [256, 256], init: 'normal', initScale: 0.01 }];
+for (let i = 1; i < 40; ++i) chain.push({ id: `p${i}`, op: 'tanh', inputs: [`p${i - 1}`] });
+chain.push({ id: 'loss', op: 'sum', inputs: ['p39'] });
+const bigSpec = { version: 1, nodes: chain, loss: 'loss', outputs: [] };
+const bigConfig = { ...config, batchSize: 1, evalBatchSize: 1, data: { kind: 'none', n: 0, noise: 0, valFraction: 0 } };
+const open = [];
+let refusal = null;
+try {
+  for (let i = 0; i < 8 && !refusal; ++i) {
+    try {
+      open.push(createSession(engine, bigSpec, bigConfig, 10 + i));
+    } catch (e) {
+      refusal = e;
+    }
+  }
+  check(refusal?.error?.code === 'OutOfMemory', `out of memory is reported, not a trap, after ${open.length} big sessions: ${refusal?.message}`);
+} catch (e) {
+  check(false, `out of memory trapped the engine: ${e}`);
+}
+open.forEach((s) => s.free());
+const after = createSession(engine, spec, config, 30);
+check(after.train(10).stepsRun === 10, 'the engine works normally after running out of memory');
+
 console.log(`=== ${failed ? `${failed} failed` : 'all passed'} ===`);
 process.exit(failed ? 1 : 0);

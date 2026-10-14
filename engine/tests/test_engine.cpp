@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -236,6 +237,26 @@ static void gradCheck(const string& name, Builder& b, NodeId out) {
             jvpOk = jvpOk && near(t, grads[pp.offset + e], 1e-4);
         }
     check(jvpOk, name + ": forward mode agrees with reverse mode");
+
+    // the single-number graph must build for every op and give the same
+    // loss and the same gradients
+    unique_ptr<Session> sc;
+    ScalarMap map;
+    sessionBegin(s.get(), PassKind::Reverse);
+    sessionAdvance(s.get(), 1 << 20, nullptr);
+    st = sessionScalarize(*s, &sc, &map);
+    if (!st.ok()) {
+        check(false, name + ": scalar view builds (" + st.message + ")");
+        return;
+    }
+    sessionBegin(sc.get(), PassKind::Reverse);
+    st = sessionAdvance(sc.get(), 1 << 20, nullptr);
+    bool same = st.ok() && near(execLoss(s->train), execLoss(sc->train), 1e-5);
+    for (const ParamPlan& pp : p.params)
+        for (uint32_t e = 0; e < pp.size; ++e)
+            same = same && near(grads[pp.offset + e], readAll(*sc, map.elems[pp.node][e], Which::Grad)[0], 1e-4);
+    check(same, name + ": scalar view gives the same loss and gradients (" +
+                    to_string(sc->trainProg.graph.nodes.size()) + " nodes)");
 }
 
 static void testOps() {
@@ -280,6 +301,18 @@ static void testOps() {
     run("softmax_cross_entropy", [](Builder& b) {
         NodeId t = b.op(Op::Softmax, {b.param({3, 4}, "tlogits")});
         return b.op(Op::SoftmaxCrossEntropy, {b.param({3, 4}, "z"), t});
+    });
+    // one tensor feeding both inputs of an op: two gradient contributions into one buffer
+    run("x * x (same input twice)", [](Builder& b) { NodeId x = b.param({3, 2}, "x"); return b.op(Op::Mul, {x, x}); });
+    run("matmul x @ xᵀ", [](Builder& b) {
+        NodeId x = b.param({3, 2}, "x");
+        return b.op(Op::MatMul, {x, b.op(Op::Transpose, {x})});
+    });
+    run("rank-4 broadcast [2,1,3,1] - [4,1,1]", [](Builder& b) { return b.op(Op::Sub, {b.param({2, 1, 3, 1}, "x"), b.param({4, 1, 1}, "y")}); });
+    run("mean axis 1 keepdim of rank 3", [](Builder& b) { return b.axisOp(Op::Mean, b.param({2, 3, 2}, "x"), 1, true); });
+    run("reshape to a scalar", [](Builder& b) {
+        Attrs a;   // rank 0
+        return b.add(Op::Reshape, {b.param({1, 1}, "x")}, a);
     });
     run("two-layer mlp", [](Builder& b) {
         NodeId x = b.fixed({4, 3}, "x");
@@ -326,6 +359,102 @@ static void testCompileErrors() {
         OptimConfig o;
         o.lr.baseLr = -1;
         check(optimValidate(o).code == Code::InvalidArgument, "a negative learning rate is rejected");
+    }
+}
+
+// ── 3b. hostile inputs: overflow, nan, wrong order, too many ────────────────
+// each check here was a real bug, found by an audit and reproduced first
+
+static void testRobustness() {
+    cout << "\n[robustness]\n";
+    {
+        // 65536^4 = 2^64 wrapped to 0 elements and passed the size limit
+        Builder b;
+        b.param({65536, 65536, 65536, 65536}, "huge");
+        Program p;
+        check(compile(b.g, {}, &p).code == Code::LimitExceeded, "a shape whose size overflows 64 bits is refused");
+        Builder r;
+        Attrs a = Builder::shaped({65536, 65536, 65536, 65536});
+        r.add(Op::Reshape, {r.param({4}, "x")}, a);
+        check(compile(r.g, {}, &p).code == Code::LimitExceeded, "a reshape to such a shape is refused");
+    }
+    {
+        // hi - lo overflowed float, the histogram bin became int(nan)
+        float v[3] = {-3e38f, 0.0f, 3e38f};
+        Stats st;
+        ConstTensorView t{v, Builder::shaped({3}).shape};
+        computeStats(t, &st);
+        uint32_t total = 0;
+        for (uint32_t h : st.hist) total += h;
+        check(total == 3 && st.hist[0] == 1 && st.hist[kHistBins - 1] == 1 && isinf(st.l2),
+              "statistics of values near the float limit: every value binned, norm inf");
+        float big[2] = {3e38f, 3e38f};
+        computeStats({big, Builder::shaped({2}).shape}, &st);
+        check(st.mean == 3e38f && st.hist[kHistBins / 2] == 2, "a constant tensor near the limit");
+    }
+    {
+        Builder b;
+        Attrs a = Builder::shaped({2}, Init::Constant, NAN);
+        NodeId p = b.add(Op::Param, {}, a, "p");
+        Program prog;
+        Status s = compile(b.g, {}, &prog);
+        check(s.code == Code::InvalidGraph && s.node == p, "a nan init scale is refused at the node");
+        Builder c;
+        Attrs inf;
+        inf.scalar = INFINITY;
+        NodeId q = c.add(Op::Pow, {c.param({2}, "x")}, inf);
+        s = compile(c.g, {}, &prog);
+        check(s.code == Code::InvalidGraph && s.node == q, "an infinite exponent is refused at the node");
+    }
+    {
+        // a negative uniform scale used to give all zeros
+        Builder b;
+        b.param({64}, "w", Init::Uniform, -0.5f);
+        Program p;
+        compile(b.g, {}, &p);
+        ParamStore ps;
+        initParams(p, 1, &ps);
+        bool nonzero = false, bounded = true;
+        for (float x : ps.values) nonzero = nonzero || x != 0, bounded = bounded && fabs(x) <= 0.5f;
+        check(nonzero && bounded, "a negative uniform scale initialises like its mirror image");
+    }
+    {
+        // changing the optimizer halfway through a stepped training pass
+        // left a pass whose rollback point was gone
+        Builder b;
+        NodeId p = b.param({1}, "p", Init::Constant, 3.0f);
+        setLoss(&b.g, b.op(Op::Sum, {b.scalarOp(Op::Pow, p, 4.0f)}));
+        SessionConfig c = noData();
+        c.optim.lr.baseLr = 0.001f;
+        unique_ptr<Session> s;
+        sessionCreate(b.g, c, &s);
+        sessionBegin(s.get(), PassKind::Train);
+        sessionAdvance(s.get(), 3, nullptr);
+        sessionSetOptimizer(s.get(), c.optim);
+        vector<float> before = s->params.values;
+        Status adv = sessionAdvance(s.get(), 100, nullptr);
+        Status sk = sessionSeek(s.get(), 1);
+        check(adv.code == Code::InvalidState && sk.code == Code::InvalidState && s->params.values == before,
+              "a training pass interrupted by an optimizer change cannot be continued or seeked");
+        // and an error that is not a nan must not roll anything back
+        sessionTrain(s.get(), 5, nullptr);
+        vector<float> trained = s->params.values;
+        sessionAdvance(s.get(), 1, nullptr);
+        check(s->params.values == trained && s->step == 5, "a refused advance leaves trained parameters alone");
+        sessionBegin(s.get(), PassKind::Train);
+        check(sessionAdvance(s.get(), 100, nullptr).ok() && s->step == 6, "a new pass after that works");
+    }
+    {
+        ag_handle g;
+        ag_graph_new(&g);
+        ag_attrs a{};
+        a.axis = kAllAxes;
+        int32_t id, ok = 0;
+        for (int i = 0; i < 1000; ++i) ok += ag_graph_add_node(g, int32_t(Op::Const), nullptr, 0, &a, "c", "", &id) == 0;
+        check(ok == int32_t(Limits{}.maxNodes) && ag_graph_add_node(g, int32_t(Op::Const), nullptr, 0, &a, "c", "", &id) ==
+                                                      int32_t(Code::LimitExceeded),
+              "the C API stops a graph at the node limit");
+        ag_graph_free(g);
     }
 }
 
@@ -412,10 +541,10 @@ static void testSession() {
     for (int32_t i = 0; i <= len; i += 3) {
         sessionBegin(s.get(), PassKind::Reverse);
         sessionAdvance(s.get(), i, nullptr);
-        vector<float> a = s->train.arena;
+        vector<float> a(s->train.arena.begin(), s->train.arena.end());
         sessionAdvance(s.get(), len, nullptr);
         sessionSeek(s.get(), i);
-        same = same && a == s->train.arena;
+        same = same && a == vector<float>(s->train.arena.begin(), s->train.arena.end());
     }
     check(same, "seek(i) gives exactly the state of advancing i steps");
 
@@ -437,11 +566,11 @@ static void testSession() {
 
     // ten thousand steps allocate nothing in the executor
     const float* arena = s->train.arena.data();
-    size_t cap = s->train.arena.capacity();
+    size_t cap = s->train.arena.size();
     auto t0 = chrono::steady_clock::now();
     sessionTrain(s.get(), 10000, nullptr);
     double ms = chrono::duration<double, milli>(chrono::steady_clock::now() - t0).count();
-    check(arena == s->train.arena.data() && cap == s->train.arena.capacity(), "no arena growth over 10,000 steps");
+    check(arena == s->train.arena.data() && cap == s->train.arena.size(), "no arena growth over 10,000 steps");
     printf("  10,000 steps in %.0f ms (%.1f us/step, batch 8, hidden 8)\n", ms, ms / 10);
 }
 
@@ -674,6 +803,7 @@ int main(int argc, char** argv) {
     testExample();
     testOps();
     testCompileErrors();
+    testRobustness();
     testMoons();
     testSession();
     testFaults();

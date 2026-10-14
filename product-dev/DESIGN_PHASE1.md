@@ -418,7 +418,7 @@ Every row of this table is implemented. The PyTorch comparison reads cases the C
 
 | Check | Result |
 |---|---|
-| `make test` (native) | 102 checks pass, plus 33 in the skeleton test; g++ and clang (Emscripten) both warning-free |
+| `make test` (native) | 154 checks pass, plus 33 in the skeleton test; g++ and clang (Emscripten) both warning-free; the same suite runs clean with undefined-behaviour traps on (`-fsanitize=undefined,float-cast-overflow -fsanitize-trap=all`) |
 | `make torch` | 26 op cases and 6 optimizers match PyTorch 2.9 |
 | `make wasm-test` | WASM agrees with native to 1.4e-7 after 1,500 steps; errors carry spec ids |
 | CMake build + ctest | both test binaries pass |
@@ -456,3 +456,27 @@ In the browser the presets train at 300 to 650 steps per second at the default 1
 | Random draws for the datasets | Each draw in its own statement | Two draws in one argument list run in an order that differs between g++ and clang, which would have made the WASM dataset differ from the native one |
 | `requires_grad`, `no_grad`, `detach` (PLAN 1A) | `requiresGrad` on inputs and parameters only | Nothing in Phase 1 needs the other two; they belong with the builder in Phase 2 |
 | Module zoom level | Not built | PLAN lists scalar and tensor zoom for Phase 1; `module` is set on preset nodes for Phase 2 |
+
+## 13. Audit fixes
+
+An audit after Phase 1 looked for overflow, memory exhaustion, graph building errors and state bugs. Each bug below was reproduced first (`test_engine.cpp` `[robustness]`, `wasm_moons.mjs`, `smoke.ts`) and now has a test.
+
+| Bug | Effect | Fix |
+|---|---|---|
+| `numel` overflowed for shapes like `[65536]×4` (2⁶⁴ wrapped to 0) | The shape passed the size limit and compiled with a zero-size buffer; kernels on it would read and write past the arena | `validateShape` checks the running product against the limit as it multiplies; `numel` saturates instead of wrapping |
+| Histogram bin computed as `int((x − lo) / width · 32)` in float | For values near ±3e38 the width overflowed to inf, the position became nan, and `int(nan)` is undefined (it can trap in WebAssembly) | Computed in double, clamped before the conversion |
+| Doubles converted to float without a range check (sums, means, losses, norms) | Out-of-range conversion is undefined behaviour; on a diverging run the executor might not see inf | `toFloat` in `core.hpp` saturates to ±inf; used at every such conversion |
+| Non-finite attributes accepted | A nan exponent or init scale surfaced later as a nan somewhere else | `validate` refuses them, naming the node |
+| Uniform init chose its branch by the sign of the bound | A negative or zero uniform scale silently initialised to all zeros | The init kind decides uniform or normal; the width is taken as an absolute value |
+| Out of memory in the WASM build | The fixed 128 MB heap ran out inside `std::vector`, which with exceptions off aborts the module. A malloc-then-free probe did not help: the compiler may delete an unused malloc/free pair | The arena is a `FloatBuffer` allocated with `calloc` and kept, and the build uses `ABORTING_MALLOC=0`; a full heap is now an `OutOfMemory` error and the engine keeps working |
+| `sessionAdvance` rolled back on any error in a training pass | An error such as "pass not begun" restored parameters from a stale snapshot, undoing real training | Rolls back only on `NonFinite` |
+| Changing the optimizer or importing parameters mid-way through a stepped training step | The rollback point was gone; seeking or a later fault could leave the step's updates applied | The step is cancelled; continuing or seeking it is refused until a new begin |
+| No node limit in `ag_graph_add_node`; handle slots unbounded | A runaway caller could fill the heap; a 65,536th slot would alias handle slot numbers | Graphs stop at the node limit; the handle table stops at 65,535 slots |
+| Bridge: a session created in the engine leaked if reading its plan failed; same for the scalar view | Engine memory leak per failure | `adopt()` frees the handle on failure |
+| Bridge: training step's low 32 bits read as signed | Negative step counts past 2³¹ steps | Read unsigned |
+| Bridge: decision grid for a model with one input left part of the buffer unwritten | Uninitialised memory drawn | The buffer is filled with nan first |
+| Worker: `maxSteps` counted the run, not the session | A resumed race overshot its step limit | The run starts from the session's real step count |
+| Stepper: switching zoom in forward mode started a pass seeded at a node of the other graph | A false "no node" error banner | The pass waits for a seed that belongs to the current graph |
+| Race view: button stayed on "Pause" after every racer finished; raced on in a hidden tab | Wrong state, wasted work | Counts stopped racers; pauses when the tab is hidden |
+
+The audit also checked that the single-number graph builds and matches the tensor graph for every op case, including edge cases (an input used twice, `x @ xᵀ`, rank-4 broadcasting, keepdim, reshape to a scalar); all passed, so no graph-building bug was found there.
