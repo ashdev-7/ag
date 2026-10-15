@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "record": "node scripts/record.ts",
+    "og": "node scripts/og.ts",
     "verify": "node scripts/verify.ts",
     "behaviour": "node scripts/behaviour.ts"
   },
