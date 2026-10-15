@@ -985,3 +985,30 @@ ANSWERED
   preset (overfit-more) hit the engine's limit. It now frees each one.
   The run also writes the missing offline recordings for overfit,
   overfit-more and spirals-small.
+
+------------------------------------------------------------------------
+ENTRY 18   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  Deploy to Vercel; a link preview; a new headline and a splash; labs on
+  phones; pages that only load after a refresh; no engine status dot.
+
+ANSWERED
+  1. Vercel (Root Directory web/, web/vercel.json). The built engine is
+     committed; CI fails if engine/ changes after it.
+  2. Link preview: og.png (a real Spirals boundary, npm run og), favicon,
+     share tags. Headline "See inside a neural network". Splash: the
+     moons' boundary trains itself, once per visit; the hero network
+     plays one forward and one backward pass, once.
+  3. Phones: the graph runs top to bottom at a readable zoom and a finger
+     scrolls the page; the main buttons are pinned to the bottom (Dock);
+     a race shows its landscape first; taps work on the neuron diagram.
+  4. "Needs a refresh": a clicked link kept the old scroll position, so a
+     lab opened far down a lesson showed its undrawn middle; and a lab
+     being left could write its address back after Back. Links now open
+     at the top; only the current view may write the address. No status
+     dot; a crashed engine recovers silently; loading is three dots.
+  5. scripts/navigate.ts clicks through every lesson, lab, card, menu
+     entry, variant and Back (164 pages) without reloading; in CI on
+     three browsers. Passes locally, on a 4x slower CPU, and on the live
+     site in Chromium, Firefox and WebKit.
