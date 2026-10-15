@@ -833,3 +833,49 @@ ANSWERED
 
   5. Verified: 51 unit tests, smoke 86 checks in Chromium, all three
      screens read by screenshot as a first-day reader would.
+
+
+------------------------------------------------------------------------
+ENTRY 14   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Good now, but the text is too dense and it doesn't feel premium. Use the
+  space better while keeping some white space for a sharp look; make the
+  text concise, complete and clear without losing understanding.
+
+ANSWERED
+  1. One shape for every lab: a header (eyebrow, title, one-line task,
+     "watch for"), a control bar, then numbered panels, each with a short
+     title, one line on how to read it, the picture and a live caption
+     (components/Panel.tsx). A reader learns the layout once.
+
+  2. Explanations turned into structure instead of paragraphs:
+     - how training works: a Guess -> Measure -> Nudge strip;
+     - optimizer descriptions inside their own control cards;
+     - stepping modes: four cards that are also the mode picker;
+     - graph key and chart keys: swatches in one row;
+     - try-this steps in a card beside the title.
+
+  3. Words on screen roughly halved, every concept kept:
+     training lab 1095 -> 508, stepping 590 -> 341, race 508 -> 301,
+     landing 829 -> 600. Live captions rewritten to about half length.
+     Landing-card blurbs are one plain line each. glossary.tsx removed
+     (only the old legend used it).
+
+  4. Visual system: Inter + JetBrains Mono, three text tones (ink,
+     explanation, muted), 14px cards with a faint shadow, segmented
+     controls, a 1400px max width. Training grid: network (7/12) beside
+     its answers (5/12), then loss, gradients and outputs in a row, then
+     the weight inspector. Charts use the page font, hairline grids and a
+     level axis title. Neuron diagram labels shorten to fit their column
+     (the 8-column vanishing network overlapped). Panel headers wrap on
+     phones.
+
+  5. Fixed: the race caption called sgd at loss 0.049 "at the bottom" next
+     to adam at 4e-13 (arrival was 1% of the drop; now 0.1%). Test added.
+
+  6. Verified: 51 unit tests; smoke all pass in Chromium. Firefox and
+     WebKit miss the "trained > 100 steps in 3 s" bar on spirals/moons, and
+     WebKit the key/link checks, but the previous commit, run in the same
+     session, fails the same checks: timing on a loaded machine, not this
+     change.
