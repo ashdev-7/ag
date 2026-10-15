@@ -147,7 +147,10 @@ export interface Series { label: string; color: string; x: number[]; y: (number 
 export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, series: Series[], opts: { logY?: boolean; yLabel?: string } = {}) {
   const pad = { l: 58, r: 8, t: 8, b: 18 };
   const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
-  const ty = (v: number) => (opts.logY ? Math.log10(Math.max(v, 1e-12)) : v);
+  // a log scale only when every value is above zero: a loss that goes
+  // negative (the saddle's minimum is −1) would otherwise be pinned at the floor
+  const logY = !!opts.logY && series.every((s) => s.y.every((y) => y === null || !Number.isFinite(y) || y > 0));
+  const ty = (v: number) => (logY ? Math.log10(v) : v);
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const s of series)
     s.x.forEach((x, i) => {
@@ -171,7 +174,7 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
   for (let k = 0; k <= 3; ++k) {
     const v = y0 + ((y1 - y0) * k) / 3;
     const yy = pad.t + (1 - k / 3) * ph;
-    ctx.fillText(fmt(opts.logY ? 10 ** v : v), pad.l - 4, yy);
+    ctx.fillText(fmt(logY ? 10 ** v : v), pad.l - 4, yy);
     ctx.strokeStyle = '#f0f0f0';
     ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
   }
@@ -180,6 +183,8 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
   ctx.fillText(String(Math.round(x0)), pad.l, h - pad.b + 4);
   ctx.textAlign = 'right';
   ctx.fillText(String(Math.round(x1)), pad.l + pw, h - pad.b + 4);
+  ctx.textAlign = 'center';
+  ctx.fillText(logY ? 'log scale' : 'linear scale', pad.l + pw / 2, h - pad.b + 4);
 
   for (const s of series) {
     ctx.strokeStyle = s.color;
