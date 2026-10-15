@@ -125,7 +125,7 @@ describe('EngineClient', () => {
     if (!r.ok) throw new Error('no session');
     const session = r.value;
     const seen: number[] = [];
-    await session.run({ watch: { stats: [], tensors: [] }, stepsPerFrame: 1, onFrame: (f) => seen.push(f.seq), onStopped: () => {} });
+    await session.run({ watch: { stats: [], tensors: [] }, stepsPerSecond: 60, onFrame: (f) => seen.push(f.seq), onStopped: () => {} });
     const w = t.worker();
     const acks = () => w.sent.filter((m) => m.type === 'ackFrame').map((m) => (m as unknown as { seq: number }).seq);
     const frame = (seq: number) => w.onmessage?.({ data: { type: 'frame', session: 1, seq, step: seq, loss: 0, gradNorm: 0, lr: 0,
@@ -144,3 +144,4 @@ describe('EngineClient', () => {
     t.client.dispose();
   });
 });
+

@@ -30,7 +30,17 @@ export const TRAIN_TASK: Record<string, { headline: string; task: ReactNode; les
   vanishing: {
     headline: 'Watch a deep network fail: vanishing gradients',
     task: <>The moons again, through six layers of the old “sigmoid” bend. It will <b>not</b> learn, and that is the lesson.</>,
-    lesson: <>Each sigmoid layer weakens the correction on its way back; by layer 1 it is about 10,000× too weak to change anything. Watch ④.</>,
+    lesson: <>Each sigmoid layer weakens the correction on its way back; by layer 1 it is thousands of times too weak to change anything. Watch ④.</>,
+  },
+  overfit: {
+    headline: 'Watch a network memorise: overfitting',
+    task: <>Only 50 noisy training dots, and a big network: about 4,400 weights. It can learn the moons, or memorise every dot. Another 50 dots are kept aside to test it.</>,
+    lesson: <>Training loss heads to 0, but the test loss (dashed, ③) bottoms out early and then climbs. Past that point every step memorises noise and makes it worse on dots it has not seen.</>,
+  },
+  'overfit-more': {
+    headline: 'The cure for overfitting: more data',
+    task: <>The same network and the same noise, but 400 training dots instead of 50: too many to memorise one by one.</>,
+    lesson: <>The test loss stays close to the training loss: with this much data the only way to do well is to learn the shape.</>,
   },
   'dead-relu': {
     headline: 'Watch a network that cannot learn: dead neurons',
@@ -69,7 +79,7 @@ export const PANEL = (batch: number): Record<string, { title: string; explain: R
   },
   loss: {
     title: 'How wrong it is',
-    explain: <>The <b>loss</b>. 0 is perfect; 0.69 is a coin flip. Solid: the {batch} dots of each step. Dashed: dots held back to test it, never trained on.</>,
+    explain: <>The <b>loss</b>. 0 is perfect; 0.69 is a coin flip. Solid: the {batch} dots of each step. Dashed: dots held back to test it, never trained on. Dashed following solid means it learned the shape; dashed climbing means it is memorising.</>,
   },
   grads: {
     title: 'How hard each layer is corrected',

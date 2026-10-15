@@ -13,6 +13,7 @@ import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
 import { RACE_GUIDES, RACE_HELP, RACE_SCREEN } from '../content/help.tsx';
 import { Panel, Story } from './Panel.tsx';
+import { SpeedControl } from './Speed.tsx';
 import { raceStory } from '../views/narrate.ts';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
@@ -26,6 +27,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
   const [surface, setSurface] = useState<{ res: number; data: Float32Array } | null>(null);
   const [running, setRunning] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  const [speed, setSpeed] = useState(preset.speed ?? 20);   // steps per second
   const optimsRef = useRef(optims);
   optimsRef.current = optims;
 
@@ -61,8 +63,8 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
     sessions.forEach((s, i) =>
       s.run({
         watch: { stats: [], tensors: [{ nodeId: race.x, which: 'value' }, { nodeId: race.y, which: 'value' }] },
-        stepsPerFrame: 2,
-        maxSteps: 3000,
+        stepsPerSecond: speed,
+        maxSteps: race.maxSteps,
         onFrame: (f) => {
           const x = f.tensors[0].data[0], y = f.tensors[1].data[0];
           setRacers((rs) => rs.map((r, k) => (k !== i ? r : {
@@ -90,6 +92,11 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
     document.addEventListener('visibilitychange', onHide);
     return () => document.removeEventListener('visibilitychange', onHide);
   }, [pause]);
+
+  // a new speed applies at once: restart the running race at it
+  useEffect(() => {
+    if (running) run();
+  }, [speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setOptim = (i: number, o: OptimConfig) => {
     setOptims((os) => os.map((x, k) => (k === i ? o : x)));
@@ -123,6 +130,8 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
       <div className="controls toolbar">
         <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
+        <SpeedControl value={speed} onChange={setSpeed} />
+        <span className="counter step-count">step <b>{racers[0].steps.at(-1) ?? 0}</b> of {race.maxSteps}</span>
         <span className="hint">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
       </div>
       <div className="race-optims">

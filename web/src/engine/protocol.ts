@@ -98,7 +98,9 @@ export interface Grid {
   x0: number; x1: number; y0: number; y1: number;
   res: number;
   nodeId?: string;
-  element?: number;
+  /** which element of the node per point; 'all': every element from one
+   *  sweep, element-major (res * res values each) */
+  element?: number | 'all';
 }
 
 /** What the worker should attach to each frame while training. */
@@ -107,11 +109,11 @@ export interface Watch {
   stats: string[];
   /** Nodes whose full tensors are wanted (the selected node, usually one). */
   tensors: { nodeId: string; which: Which }[];
-  /** Decision boundary grid, recomputed every `gridEvery` frames. */
+  /** Decision boundary grid, recomputed at most every `gridEveryMs`. */
   grid?: Grid;
-  gridEvery?: number;
-  /** Validation loss every this many frames. 0 disables. */
-  valEvery?: number;
+  gridEveryMs?: number;
+  /** Validation loss at most every this many milliseconds. 0 or absent: never. */
+  valEveryMs?: number;
 }
 
 export interface Dataset {
@@ -136,7 +138,8 @@ export type Request =
   | { type: 'advance'; session: SessionId; n: number }
   | { type: 'seek'; session: SessionId; index: number }
   // training
-  | { type: 'run'; session: SessionId; watch: Watch; stepsPerFrame: number; maxSteps?: number }
+  // stepsPerSecond is kept by the clock (engine/pacing.ts), not per frame
+  | { type: 'run'; session: SessionId; watch: Watch; stepsPerSecond: number; maxSteps?: number }
   | { type: 'pause'; session: SessionId }
   | { type: 'ackFrame'; session: SessionId; seq: number }
   | { type: 'train'; session: SessionId; steps: number }

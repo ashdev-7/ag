@@ -34,12 +34,11 @@ export async function fetchNeurons(s: Session, preset: Preset, domain: { x0: num
     biases.push(b.ok ? b.value.data : new Float32Array(outDim));
     // the output layer is shown as probabilities, the softmax of the logits
     const node = k === preset.layers.length - 1 ? (preset.boundary?.nodeId ?? l.act) : l.act;
-    const layer: Float32Array[] = [];
-    for (let j = 0; j < outDim; ++j) {
-      const g = await s.evalGrid({ ...domain, res: RES, nodeId: node, element: j });
-      layer.push(g.ok ? g.value.data : new Float32Array(RES * RES));
-    }
-    grids.push(layer);
+    // the whole layer from one sweep of the grid: one request, not one per neuron
+    const g = await s.evalGrid({ ...domain, res: RES, nodeId: node, element: 'all' });
+    const n = RES * RES;
+    grids.push(Array.from({ length: outDim }, (_, j) =>
+      g.ok && g.value.data.length >= (j + 1) * n ? g.value.data.subarray(j * n, (j + 1) * n) : new Float32Array(n)));
   }
   return { res: RES, grids, weights, biases };
 }
@@ -95,7 +94,8 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
       // room on the left for x₁/x₂ and on the right for the class names
       const colX = (k: number) => 24 + (k * (w - 24 - 64 - 34)) / Math.max(1, cols - 1);
       const maxN = Math.max(...sizes);
-      const s = Math.max(6, Math.min(34, ((h - top - bottom) / maxN) * 0.78));
+      // wide layers (64 neurons) get small squares rather than a page-tall diagram
+      const s = Math.max(3, Math.min(34, ((h - top - bottom) / maxN) * 0.78));
       const boxes: Box[] = [];
       sizes.forEach((n, k) => {
         const gap = (h - top - bottom) / n;
@@ -182,7 +182,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
       const picture = normalised(acts[b.layer - 1], state.grids[b.layer - 1][b.index]);
       return setHover(last
         ? `Answer neuron “${b.index === 0 ? 'blue' : 'orange'}”: how sure the network is that a dot is ${b.index === 0 ? 'blue' : 'orange'}, for every position on the plane (orange = sure, blue = not). Bias ${fmt(bias)}.`
-        : `${titles[b.layer]}, neuron ${b.index + 1}: it adds up its weighted inputs plus a bias of ${fmt(bias)}, then applies ${acts[b.layer - 1]}. Its picture is its output at every point of the plane (orange high, blue low): the feature it has learned to detect.`, picture);
+        : `${titles[b.layer][0]}, neuron ${b.index + 1}: it adds up its weighted inputs plus a bias of ${fmt(bias)}, then applies ${acts[b.layer - 1]}. Its picture is its output at every point of the plane (orange high, blue low): the feature it has learned to detect.`, picture);
     }
     // nearest line within 4 pixels
     let best: Line | null = null, bestD = 4;
@@ -193,8 +193,8 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
       if (d < bestD) { bestD = d; best = l; }
     }
     if (best) {
-      const from = best.layer === 0 ? (best.from === 0 ? 'input x₁' : 'input x₂') : `${titles[best.layer]} neuron ${best.from + 1}`;
-      const to = best.layer === sizes.length - 2 ? `output “${best.to === 0 ? 'blue' : 'orange'}”` : `${titles[best.layer + 1]} neuron ${best.to + 1}`;
+      const from = best.layer === 0 ? (best.from === 0 ? 'input x₁' : 'input x₂') : `${titles[best.layer][0]} neuron ${best.from + 1}`;
+      const to = best.layer === sizes.length - 2 ? `output “${best.to === 0 ? 'blue' : 'orange'}”` : `${titles[best.layer + 1][0]} neuron ${best.to + 1}`;
       return setHover(`Weight from ${from} to ${to}: ${fmt(best.w)}. ${best.w >= 0 ? 'Positive: when the first goes up, it pushes the second up.' : 'Negative: when the first goes up, it pushes the second down.'}`);
     }
     setHover('');
@@ -203,7 +203,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
   return (
     <div className="neurons">
       {/* wider layers get a taller diagram, so every neuron stays at least ~11 px */}
-      <canvas ref={ref} style={{ width: '100%', height: props.height ?? Math.max(360, 40 + Math.max(0, ...sizes) * 14), display: 'block' }}
+      <canvas ref={ref} style={{ width: '100%', height: props.height ?? Math.min(520, Math.max(360, 40 + Math.max(0, ...sizes) * 14)), display: 'block' }}
         onMouseMove={onMove} onMouseLeave={() => setHover('')} role="img" aria-label={`Network diagram: ${sizes.join(' → ')} neurons`} />
       <div className="story neuron-hover">
         {hover.picture && state && (

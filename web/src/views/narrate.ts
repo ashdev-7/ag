@@ -55,7 +55,29 @@ export function boundaryStory(acc: { train: number; val: number } | null, step: 
   return `${base} The boundary is still bending into shape.`;
 }
 
-export function lossStory(loss: number[], val: (number | null)[], step: number): string {
+/**
+ * The test loss against the training loss: memorising, or learning the shape.
+ * `steps[i]` is the training step of `val[i]`, for saying where the test loss
+ * was lowest.
+ */
+export function testStory(val: (number | null)[], train: number, steps?: number[], clean = false): string {
+  let low = Infinity, lowAt = -1;
+  val.forEach((v, i) => { if (v !== null && v < low) { low = v; lowAt = i; } });
+  const v = val.filter((x): x is number => x !== null).at(-1);
+  if (v === undefined) return '';
+  // turned around: well above its own lowest point while training goes on
+  if (v > 1.3 * low && v - low > 0.1) {
+    const where = steps && lowAt >= 0 ? ` at step ${steps[lowAt]}` : '';
+    return `Test loss was lowest (${fmt(low)})${where} and is now ${fmt(v)}: it keeps learning the training dots while getting worse on new ones. That is overfitting, memorising instead of learning.`;
+  }
+  if (v > 0.1 && v > 2 * Math.max(train, 0.01)) return `Test loss ${fmt(v)} is far higher: it may be memorising its training dots.`;
+  if (train < 0.3 && v < 1.5 * train + 0.05)
+    return 'Test dots score about the same as training dots: it learned the shape, not the individual dots.'
+      + (clean ? ' With hundreds of dots that barely overlap there is nothing to memorise; the Overfitting lab shows the opposite.' : '');
+  return '';
+}
+
+export function lossStory(loss: number[], val: (number | null)[], step: number, steps?: number[], clean = false): string {
   if (step === 0 || !loss.length) return `Not trained yet. A 50/50 guess scores ${fmt(COIN_FLIP)}; lower is better.`;
   const cur = loss[loss.length - 1], first = loss[0];
   const t = trend(loss);
@@ -66,10 +88,7 @@ export function lossStory(loss: number[], val: (number | null)[], step: number):
     : cur < 0.05 ? 'That is low: confident and right.'
     : 'Better than a coin flip.';
   let s = `${fmt(first)} → ${fmt(cur)}. ${level} ${moving}`;
-  const v = val.filter((x): x is number => x !== null).at(-1);
-  if (v !== undefined && v > 0.1 && v > 2 * Math.max(cur, 0.01))
-    s += ` Test loss ${fmt(v)} is far higher: it may be memorising its training dots.`;
-  return s.trim();
+  return `${s.trim()} ${testStory(val, cur, steps, clean)}`.trim();
 }
 
 export function gradStory(layers: { label: string; norm: number }[], history: number[][], lossFalling = false): string {

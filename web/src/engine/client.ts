@@ -34,7 +34,8 @@ export interface EngineClientOptions {
 
 export interface RunOptions {
   watch: Watch;
-  stepsPerFrame: number;
+  /** Training speed, kept by the worker's clock (pacing.ts). */
+  stepsPerSecond: number;
   maxSteps?: number;
   onFrame: (frame: Frame) => void;
   onStopped: (stopped: Stopped) => void;
@@ -253,7 +254,7 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
 
     run(o: RunOptions) {
       this.runOpts = o;
-      return this.call({ type: 'run', session: this.key, watch: o.watch, stepsPerFrame: o.stepsPerFrame, maxSteps: o.maxSteps });
+      return this.call({ type: 'run', session: this.key, watch: o.watch, stepsPerSecond: o.stepsPerSecond, maxSteps: o.maxSteps });
     }
     pause() {
       this.runOpts = null;

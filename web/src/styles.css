@@ -56,6 +56,10 @@ input[type='range'] { accent-color: var(--accent); }
 .segmented { display: inline-flex; background: #ececf2; border-radius: 9px; padding: 2px; gap: 2px; }
 .segmented button { border: none; border-radius: 7px; background: transparent; padding: 5px 12px; color: var(--ink-2); }
 .segmented button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.segmented a { border-radius: 7px; padding: 5px 14px; color: var(--ink-2); text-decoration: none; font-weight: 500; }
+.segmented a.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.variants { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; color: var(--ink-2); font-weight: 500; }
+.speed-value { color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 9.5em; }
 .field { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
 .counter { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; }
 

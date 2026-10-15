@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accuracy, activationStory, boundaryStory, gradStory, lossStory, raceStory, trend } from './narrate.ts';
+import { accuracy, activationStory, boundaryStory, gradStory, lossStory, raceStory, testStory, trend } from './narrate.ts';
 
 describe('live captions', () => {
   it('reads accuracy off the decision grid', () => {
@@ -51,5 +51,24 @@ describe('live captions', () => {
     // a slow racer at 0.05 is not at the bottom beside one at 1e-13, though both are far below the start
     const slow = raceStory([{ name: 'sgd', loss: [11, 1, 0.049], diverged: false }, { name: 'adam', loss: [11, 1e-6, 4e-13], diverged: false }]);
     expect(slow).toMatch(/Furthest behind: sgd/);
+  });
+});
+
+describe('testStory', () => {
+  it('names overfitting when the test loss turns around', () => {
+    const s = testStory([0.8, 0.3, 0.5, 0.9], 0.01, [0, 50, 100, 800]);
+    expect(s).toMatch(/lowest \(0\.3.*at step 50/);
+    expect(s).toMatch(/overfitting/);
+  });
+  it('does not call a still-falling test loss overfitting', () => {
+    expect(testStory([0.8, 0.5, 0.3, 0.2], 0.15, [0, 50, 100, 150])).not.toMatch(/overfitting/);
+  });
+  it('says the shape was learned when test follows training, and why only for clean data', () => {
+    expect(testStory([0.8, 0.1, 0.05], 0.04)).toMatch(/learned the shape/);
+    expect(testStory([0.8, 0.1, 0.05], 0.04, undefined, true)).toMatch(/nothing to memorise/);
+    expect(testStory([0.8, 0.1, 0.05], 0.04)).not.toMatch(/nothing to memorise/);
+  });
+  it('says nothing before there is a test loss', () => {
+    expect(testStory([null, null], 0.5)).toBe('');
   });
 });

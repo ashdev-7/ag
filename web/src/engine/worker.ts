@@ -5,6 +5,7 @@
 // page slows the frame rate, not the training. Between ticks the message
 // queue runs, which is how pause and reset get in.
 
+import { refreshDue, stepsDue } from './pacing.ts';
 import { createSession, EngineFault, loadEngine, scalarize } from './bridge.ts';
 import type { Engine, EngineSession } from './bridge.ts';
 import { PROTOCOL_VERSION } from './protocol.ts';
@@ -23,9 +24,15 @@ let nextKey = 1;
 
 interface Run {
   watch: Watch;
-  stepsPerFrame: number;
+  stepsPerSecond: number;
   maxSteps?: number;
   seq: number;
+  /** pacing: when this run's clock started, and steps taken since */
+  t0: number;
+  done: number;
+  /** extras: when each was last done and what it cost, in ms */
+  grid: { last: number; cost: number };
+  val: { last: number; cost: number };
   waiting: boolean;
   frames: number;
   step: number;
@@ -93,8 +100,9 @@ async function handle(req: Request): Promise<Replies[Request['type']]> {
       // the same place a straight one would
       const current = session(req.session).train(0).step;
       runs.set(req.session, {
-        watch: req.watch, stepsPerFrame: Math.max(1, Math.min(1000, Math.floor(req.stepsPerFrame) || 1)), maxSteps: req.maxSteps,
-        seq: 0, waiting: false, frames: 0, step: current, clock: { t: performance.now(), step: -1 },
+        watch: req.watch, stepsPerSecond: Math.max(0.1, Math.min(10000, req.stepsPerSecond || 1)), maxSteps: req.maxSteps,
+        seq: 0, waiting: false, frames: 0, step: current, t0: performance.now(), done: 0,
+        grid: { last: -Infinity, cost: 0 }, val: { last: -Infinity, cost: 0 }, clock: { t: performance.now(), step: -1 },
       });
       setTimeout(() => tick(req.session), 0);
       return {};
@@ -149,7 +157,16 @@ function tick(key: number) {
   const s = sessions.get(key);
   if (!run || !s || run.waiting) return;
   try {
-    const steps = run.maxSteps ? Math.min(run.stepsPerFrame, run.maxSteps - run.step) : run.stepsPerFrame;
+    // as many steps as the clock says are due; none due yet: come back when one is.
+    // a timer left over from an earlier run of this session must not tick this one
+    const due = stepsDue(run.stepsPerSecond, performance.now() - run.t0, run.done);
+    if (due.steps === 0) {
+      setTimeout(() => runs.get(key) === run && tick(key), Math.max(1, due.waitMs));
+      return;
+    }
+    if (due.behind) run.t0 = performance.now() - ((run.done + due.steps) / run.stepsPerSecond) * 1000;
+    run.done += due.steps;
+    const steps = run.maxSteps ? Math.min(due.steps, run.maxSteps - run.step) : due.steps;
     if (steps <= 0) {
       runs.delete(key);
       scope.postMessage({ type: 'stopped', session: key, step: run.step, reason: 'maxSteps' });
@@ -174,8 +191,17 @@ function tick(key: number) {
       gradStats: s.stats(w.stats, 'grad'),
       tensors: w.tensors.map((t) => ({ nodeId: t.nodeId, which: t.which, ...s.read(t.nodeId, t.which) })),
     };
-    if (w.grid && run.frames % Math.max(1, w.gridEvery ?? 1) === 0) frame.grid = s.evalGrid(w.grid);
-    if (w.valEvery && run.frames % w.valEvery === 0) frame.valLoss = s.evalLoss('val');
+    // the boundary and the test loss on a time budget: see refreshDue
+    if (w.grid && refreshDue(now, run.grid.last, w.gridEveryMs ?? 0, run.grid.cost)) {
+      const t = performance.now();
+      frame.grid = s.evalGrid(w.grid);
+      run.grid = { last: now, cost: performance.now() - t };
+    }
+    if (w.valEveryMs && refreshDue(now, run.val.last, w.valEveryMs, run.val.cost)) {
+      const t = performance.now();
+      frame.valLoss = s.evalLoss('val');
+      run.val = { last: now, cost: performance.now() - t };
+    }
     run.frames++;
     run.waiting = true;
     scope.postMessage(frame, transferables(frame));

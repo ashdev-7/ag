@@ -109,6 +109,6 @@ export const RACE_SCREEN: ReactNode = (
 );
 
 export const RACE_HELP = {
-  surface: <>Darker is lower. Each line is one optimizer’s path, a dot per step, for up to 3,000 steps.</>,
+  surface: <>Darker is lower. Each line is one optimizer’s path, a dot per step.</>,
   loss: <>Each optimizer’s height as it goes; the line that falls fastest is winning. Steps that blow up are stopped and marked “diverged”.</>,
 };

@@ -172,7 +172,7 @@ export const INTERMEDIATE: Lesson[] = [
       {
         heading: 'Learning versus memorising',
         body: <>
-          <p>A network with enough knobs can drive the loss on its training examples to zero by memorising them, and still be useless on new data. This is <b>overfitting</b>. The only way to tell is to keep some examples <b>out</b> of training and measure the loss on them: the <b>validation set</b> (here 20% of the points).</p>
+          <p>A network with enough knobs can drive the loss on its training examples to zero by memorising them, and still be useless on new data. This is <b>overfitting</b>. The only way to tell is to keep some examples <b>out</b> of training and measure the loss on them: the <b>validation set</b> (in most labs here, 20% of the dots).</p>
           <ul>
             <li>Both losses fall: it is learning the pattern.</li>
             <li>Training loss falls but validation loss rises: it has started memorising. Stopping there is called <i>early stopping</i>.</li>
@@ -187,11 +187,18 @@ export const INTERMEDIATE: Lesson[] = [
     faq: [
       { q: 'Why is the solid loss line so jumpy?', a: <>Each point is the loss of one batch of 16, and batches differ: some are easy, some hard. The dashed validation line averages over all held-out points, so it is smooth.</> },
       { q: 'How big should a batch be?', a: <>Bigger batches give smoother gradients and use hardware better, but each example then contributes less learning per unit of compute. Common sizes range from 16 to several thousand.</> },
-      { q: 'Why don’t these examples overfit much?', a: <>The networks are small for the amount of data and the data have a simple shape. Overfitting shows most with many parameters and few examples.</> },
+      { q: 'Why don’t the other labs overfit?', a: <>They train on hundreds of dots that barely overlap. When the training dots cover the shape this densely, fitting them <i>is</i> learning the shape, so new dots come out right too. Overfitting needs few examples, noise in them, and a network big enough to memorise each one: the Overfitting lab has all three.</> },
+      { q: 'What fixes overfitting?', a: <>More data is the surest cure (the lab’s 400-dot switch). Others: stop when the validation loss is lowest (early stopping), a smaller network, or penalties that keep weights small (weight decay).</> },
     ],
     labs: [{
       preset: 'moons', label: 'Batches and validation',
       steps: [<>Press Run and compare the solid (batch) and dashed (held-out) loss lines.</>, <>Press Reset, then Step a few times: each Step is exactly one batch, one forward, one backward, one update.</>],
+    }, {
+      preset: 'overfit', label: 'Overfitting, and its cure',
+      steps: [<>Press Run. The dashed test loss falls, then turns around and climbs while the solid training loss keeps falling: memorising.</>, <>Look at ②: the boundary bends around single dots instead of following the moons.</>, <>Switch to 400 training dots and run again: the test loss now stays near the training loss.</>],
+    }, {
+      preset: 'overfit-more', label: 'The same network with 8× the data',
+      steps: [<>Press Run: the test loss stays close to the training loss all the way.</>],
     }],
   },
 

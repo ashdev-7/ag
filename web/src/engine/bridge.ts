@@ -174,7 +174,7 @@ function writeGrid(m: AgModule, p: number, g: Grid, node: number) {
   f32(m, p + 12, g.y1);
   i32(m, p + 16, g.res);
   i32(m, p + 20, node);
-  i32(m, p + 24, g.element ?? 0);
+  i32(m, p + 24, g.element === 'all' ? -1 : g.element ?? 0);
 }
 
 /** ag_stats, 164 bytes. */
@@ -318,7 +318,9 @@ export class EngineSession {
 
   evalGrid(g: Grid): { res: number; data: Float32Array } {
     const node = g.nodeId ? this.node(g.nodeId) : -1;
-    const count = g.res * g.res;
+    // every element: as many grids as the node has values per point
+    const shape = g.element === 'all' && g.nodeId ? this.info.nodes.find((n) => n.id === g.nodeId)?.shape ?? [] : [];
+    const count = g.res * g.res * shape.slice(1).reduce((a, b) => a * b, 1);
     return withBuffer(this.e.m, count * 4, (p) => {
       // a model with one input feature fills only `res` values; the rest must
       // not be whatever malloc left there

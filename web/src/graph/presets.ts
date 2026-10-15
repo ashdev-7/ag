@@ -24,6 +24,10 @@ export interface Preset {
   spec: GraphSpec;
   config: SessionConfig;
   layers: Layer[];
+  /** Labs that differ in one setting, shown as a switch between them. */
+  variants?: { label: string; options: { id: string; label: string }[] };
+  /** Training or racing speed it opens at, in steps per second. Default 10. */
+  speed?: number;
   /** Decision boundary: node and element sampled over the input plane. */
   boundary?: { nodeId: string; element: number };
   race?: {
@@ -31,6 +35,8 @@ export interface Preset {
     y: string;
     domain: { x0: number; x1: number; y0: number; y1: number };
     optimizers: OptimConfig[];
+    /** Steps after which the race ends: a little past the slowest arrival. */
+    maxSteps: number;
   };
 }
 
@@ -44,7 +50,7 @@ const spec = (nodes: NodeSpec[], loss: string, outputs: string[] = []): GraphSpe
 const noData = { kind: 'none', n: 0, noise: 0, valFraction: 0 } as const;
 
 /** A classifier on 2-d points: x -> [dense -> act] * k -> dense -> logits; softmax cross-entropy. */
-function classifier(hidden: number[], act: OpName, opts: { init?: InitName; initScale?: number; bias?: { init: InitName; scale: number } } = {}) {
+export function classifier(hidden: number[], act: OpName, opts: { init?: InitName; initScale?: number; bias?: { init: InitName; scale: number } } = {}) {
   const nodes: NodeSpec[] = [
     node('x', 'input', [], { shape: ['B', 2], role: 'features', name: 'x' }),
     node('y', 'input', [], { shape: ['B', 2], role: 'targets', name: 'y' }),
@@ -76,15 +82,28 @@ function classifier(hidden: number[], act: OpName, opts: { init?: InitName; init
   return { spec: spec(nodes, 'loss', ['probs']), layers };
 }
 
-function trainConfig(data: SessionConfig['data']['kind'], optim: OptimConfig, batchSize = 16, n = 400, noise = 0.1): SessionConfig {
-  return { batchSize, evalBatchSize: 256, seed: 1, optim, data: { kind: data, n, noise, valFraction: 0.2 } };
+interface TrainOpts {
+  batchSize?: number;
+  /** dots in all, before the split */
+  n?: number;
+  noise?: number;
+  /** share of the dots held back for testing (at most 0.5) */
+  valFraction?: number;
+  speed?: number;
 }
 
-function trainPreset(id: string, title: string, blurb: string, data: SessionConfig['data']['kind'],
-  net: ReturnType<typeof classifier>, optim: OptimConfig, batchSize = 16, n = 400, noise = 0.1): Preset {
+function trainConfig(data: SessionConfig['data']['kind'], optim: OptimConfig, o: TrainOpts = {}): SessionConfig {
   return {
-    id, title, blurb, mode: 'train', spec: net.spec, layers: net.layers,
-    config: trainConfig(data, optim, batchSize, n, noise),
+    batchSize: o.batchSize ?? 16, evalBatchSize: 256, seed: 1, optim,
+    data: { kind: data, n: o.n ?? 400, noise: o.noise ?? 0.1, valFraction: o.valFraction ?? 0.2 },
+  };
+}
+
+export function trainPreset(id: string, title: string, blurb: string, data: SessionConfig['data']['kind'],
+  net: ReturnType<typeof classifier>, optim: OptimConfig, o: TrainOpts = {}): Preset {
+  return {
+    id, title, blurb, mode: 'train', spec: net.spec, layers: net.layers, speed: o.speed,
+    config: trainConfig(data, optim, o),
     boundary: { nodeId: 'probs', element: 1 },
   };
 }
@@ -165,29 +184,44 @@ const mlpStep: Preset = {
   mode: 'step',
   spec: tinyMlp.spec,
   layers: tinyMlp.layers,
-  config: trainConfig('moons', { kind: 'sgd', lr: 0.3 }, 4),
+  config: trainConfig('moons', { kind: 'sgd', lr: 0.3 }, { batchSize: 4 }),
   boundary: { nodeId: 'probs', element: 1 },
 };
 
 // ── training presets ────────────────────────────────────────────────────────
 
 const moons = trainPreset('moons', 'Moons', 'Bend a boundary around two half-moons.',
-  'moons', classifier([8, 8], 'tanh'), { kind: 'adam', lr: 0.02 });
+  'moons', classifier([8, 8], 'tanh'), { kind: 'adam', lr: 0.02 }, { speed: 20 });
 const circles = trainPreset('circles', 'Circles', 'Draw a loop around the centre.',
-  'circles', classifier([8, 8], 'relu'), { kind: 'adam', lr: 0.02 });
+  'circles', classifier([8, 8], 'relu'), { kind: 'adam', lr: 0.02 }, { speed: 5 });
 // tanh networks sit on a plateau here for thousands of steps; ReLU does not
 const spirals = trainPreset('spirals', 'Spirals', 'The hardest shape: needs a wider network.',
-  'spirals', classifier([32, 32], 'relu'), { kind: 'adam', lr: 0.01 }, 32, 600, 0.05);
+  'spirals', classifier([32, 32], 'relu'), { kind: 'adam', lr: 0.01 }, { batchSize: 32, n: 600, noise: 0.05, speed: 100 });
 const xor = trainPreset('xor', 'XOR', 'The puzzle no single line can solve.',
   'xor', classifier([8], 'tanh'), { kind: 'momentum', lr: 0.1, momentum: 0.9 });
 
 const vanishing = trainPreset('vanishing', 'Vanishing gradients',
   'A deep network whose early layers cannot learn.',
-  'moons', classifier([8, 8, 8, 8, 8, 8], 'sigmoid'), { kind: 'sgd', lr: 0.5 });
+  'moons', classifier([8, 8, 8, 8, 8, 8], 'sigmoid'), { kind: 'sgd', lr: 0.5 }, { speed: 50 });
 const deadRelu = trainPreset('dead-relu', 'Dead ReLUs',
   'Neurons stuck at zero, forever.',
   'circles', classifier([16, 16], 'relu', { init: 'normal', initScale: 0.3, bias: { init: 'constant', scale: -1.5 } }),
   { kind: 'sgd', lr: 0.1 });
+
+// overfitting: a big network (about 4,400 weights) on noisy moons. Half the
+// dots are held back so the test loss is measured on as many dots as are
+// trained on. Measured (scripts/behaviour.ts): with 50 training dots the test
+// loss bottoms out near step 50-100 and then climbs while the training loss
+// goes to 0; with 400 it stays near the training loss.
+const overfitNet = classifier([64, 64], 'relu');
+const overfitOpts = { noise: 0.3, valFraction: 0.5, speed: 20 };
+const overfit = trainPreset('overfit', 'Overfitting',
+  'A big network, few dots: it memorises.',
+  'moons', overfitNet, { kind: 'adam', lr: 0.002 }, { ...overfitOpts, n: 100 });
+const overfitCure = trainPreset('overfit-more', 'Overfitting: more data',
+  'The same network with 8× the data.',
+  'moons', overfitNet, { kind: 'adam', lr: 0.002 }, { ...overfitOpts, n: 800 });
+overfit.variants = overfitCure.variants = { label: 'Training dots', options: [{ id: 'overfit', label: '50' }, { id: 'overfit-more', label: '400' }] };
 
 // ── optimizer race ──────────────────────────────────────────────────────────
 // x and y are two scalar parameters; the loss is a function of the plane
@@ -200,9 +234,9 @@ const racers: OptimConfig[] = [
 ];
 
 function racePreset(id: string, title: string, blurb: string, start: [number, number], body: NodeSpec[], loss: string,
-  domain: NonNullable<Preset['race']>['domain'], optimizers: OptimConfig[]): Preset {
+  domain: NonNullable<Preset['race']>['domain'], optimizers: OptimConfig[], maxSteps: number, speed: number): Preset {
   return {
-    id, title, blurb, mode: 'race',
+    id, title, blurb, mode: 'race', speed,
     spec: spec([
       param('x', [], 'constant', start[0]),
       param('y', [], 'constant', start[1]),
@@ -210,7 +244,7 @@ function racePreset(id: string, title: string, blurb: string, start: [number, nu
     ], loss),
     config: { batchSize: 1, evalBatchSize: 1, seed: 1, optim: optimizers[0], data: noData },
     layers: [],
-    race: { x: 'x', y: 'y', domain, optimizers },
+    race: { x: 'x', y: 'y', domain, optimizers, maxSteps },
   };
 }
 
@@ -228,7 +262,7 @@ const rosenbrock = racePreset('rosenbrock', 'Rosenbrock valley',
     node('v2', 'pow', ['v'], { scalar: 2 }),
     node('w', 'mul', ['hundred', 'v2']),
     node('f', 'add', ['u2', 'w'], { name: 'f' }),
-  ], 'f', { x0: -2, x1: 2, y0: -1, y1: 3 }, racers);
+  ], 'f', { x0: -2, x1: 2, y0: -1, y1: 3 }, racers, 3000, 100);
 
 const saddle = racePreset('saddle', 'Saddle point',
   'A mountain pass that traps slow optimizers.',
@@ -242,7 +276,8 @@ const saddle = racePreset('saddle', 'Saddle point',
     node('s', 'sub', ['x2', 'y2']),
     node('f', 'add', ['s', 'q'], { name: 'f' }),
   ], 'f', { x0: -2, x1: 2, y0: -2, y1: 2 },
-  [{ kind: 'sgd', lr: 0.01 }, { kind: 'momentum', lr: 0.01, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.01, beta2: 0.99 }, { kind: 'adam', lr: 0.02 }]);
+  [{ kind: 'sgd', lr: 0.01 }, { kind: 'momentum', lr: 0.01, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.01, beta2: 0.99 }, { kind: 'adam', lr: 0.02 }],
+  600, 20);
 
 const bowl = racePreset('bowl', 'Narrow bowl',
   'Steep one way, shallow the other: zig-zags.',
@@ -255,11 +290,12 @@ const bowl = racePreset('bowl', 'Narrow bowl',
     node('b2', 'mul', ['ten', 'y2']),
     node('f', 'add', ['a', 'b2'], { name: 'f' }),
   ], 'f', { x0: -2, x1: 2, y0: -1.2, y1: 1.2 },
-  [{ kind: 'sgd', lr: 0.09 }, { kind: 'momentum', lr: 0.02, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.02, beta2: 0.99 }, { kind: 'adam', lr: 0.05 }]);
+  [{ kind: 'sgd', lr: 0.09 }, { kind: 'momentum', lr: 0.02, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.02, beta2: 0.99 }, { kind: 'adam', lr: 0.05 }],
+  120, 5);
 
 export const PRESETS: Preset[] = [
   expression, stopGrad, neuron, broadcast, mlpStep,
-  moons, circles, spirals, xor, vanishing, deadRelu,
+  moons, circles, spirals, xor, vanishing, deadRelu, overfit, overfitCure,
   rosenbrock, saddle, bowl,
 ];
 

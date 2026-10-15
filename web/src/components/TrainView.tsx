@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
+import { SpeedControl } from './Speed.tsx';
 import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
 import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, layerColor, maxAbs, PALETTE } from '../views/draw.ts';
@@ -105,7 +106,7 @@ export function TrainView(props: {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [runs, setRuns] = useState<RunView[]>([]);
   const [running, setRunning] = useState(false);
-  const [speed, setSpeed] = useState(2);
+  const [speed, setSpeed] = useState(preset.speed ?? 10);   // steps per second
   const [data, setData] = useState<Dataset | null>(null);
   const [selected, setSelected] = useState<string | undefined>();
   const [inspect, setInspect] = useState<{ value?: Float32Array; grad?: Float32Array; m?: Float32Array; v?: Float32Array; shape: number[] } | null>(null);
@@ -115,7 +116,8 @@ export function TrainView(props: {
   const [film, setFilm] = useState<{ step: number; grid: { res: number; data: Float32Array } }[]>([]);
   const comparing = optims.length > 1;
 
-  const grid: Grid | undefined = preset.boundary ? { ...DOMAIN, res: 60, nodeId: preset.boundary.nodeId, element: preset.boundary.element } : undefined;
+  const grid: Grid | undefined = useMemo(() => (preset.boundary
+    ? { ...DOMAIN, res: 60, nodeId: preset.boundary.nodeId, element: preset.boundary.element } : undefined), [preset]);
   const allIds = useMemo(() => preset.spec.nodes.map((n) => n.id), [preset]);
 
   // build one session per optimizer; the second imports the first's weights
@@ -190,9 +192,11 @@ export function TrainView(props: {
     setRunning(true);
     onBanner(undefined);
     sessions.forEach((s, i) => {
+      // the boundary up to 30 and the test loss up to 10 times a second; the
+      // worker spaces them out further when they are expensive
       s.run({
-        watch: { stats: allIds, tensors: [], grid, gridEvery: 2, valEvery: 5 },
-        stepsPerFrame: speed,
+        watch: { stats: allIds, tensors: [], grid, gridEveryMs: 33, valEveryMs: 100 },
+        stepsPerSecond: speed,
         onFrame: (f) => onFrame(i, f),
         onStopped: (st) => {
           setRunning(false);
@@ -206,10 +210,24 @@ export function TrainView(props: {
     });
   }, [sessions, allIds, grid, speed, onFrame, onBanner]);
 
+  const current = useRef(sessions);
+  current.current = sessions;
   const pause = useCallback(() => {
     setRunning(false);
-    sessions.forEach((s) => s.pause());
-  }, [sessions]);
+    sessions.forEach((s, i) => {
+      void s.pause().then(async () => {
+        // the boundary and test loss are refreshed on a time budget, so they
+        // can trail the last step a little: bring them up to date
+        const [g, v] = await Promise.all([grid ? s.evalGrid(grid) : null, s.evalLoss('val')]);
+        if (current.current[i] !== s) return;   // reset meanwhile
+        setRuns((rs) => rs.map((r, k) => (k !== i ? r : {
+          ...r,
+          grid: g && g.ok ? g.value : r.grid,
+          history: v.ok && r.history.val.length ? { ...r.history, val: [...r.history.val.slice(0, -1), v.value] } : r.history,
+        })));
+      });
+    });
+  }, [sessions, grid]);
 
   // a hidden tab stops training; it resumes when asked
   useEffect(() => {
@@ -335,6 +353,16 @@ export function TrainView(props: {
           <h1>{task?.headline ?? preset.title}</h1>
           {task && <p className="lede">{task.task}</p>}
           {task && <p className="watch-for"><span><b>Watch for: </b>{task.lesson}</span></p>}
+          {preset.variants && (
+            <div className="variants">
+              <span>{preset.variants.label}</span>
+              <span className="segmented">
+                {preset.variants.options.map((v) => (
+                  <a key={v.id} href={`#preset=${v.id}`} className={v.id === preset.id ? 'on' : ''} aria-current={v.id === preset.id ? 'page' : undefined}>{v.label}</a>
+                ))}
+              </span>
+            </div>
+          )}
         </div>
         <div>
           <span className="eyebrow">How training works</span>
@@ -348,9 +376,7 @@ export function TrainView(props: {
         <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
         <button onClick={stepOnce} disabled={running} title="Exactly one training step">Step</button>
         <button onClick={reset} title="Start over from the same random weights">Reset</button>
-        <label className="field">speed
-          <input type="range" min={1} max={100} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Training steps per screen update" />
-        </label>
+        <SpeedControl value={speed} onChange={setSpeed} />
         <span className="counter step-count">step <b>{a.step}</b></span>
         <span className="sep" />
         <div className="optim-row">
@@ -363,7 +389,7 @@ export function TrainView(props: {
         <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
       </div>
       <p className="controls-foot">
-        <span><b>Run</b> trains until paused · <b>Step</b> makes one nudge · <b>speed</b>: steps per screen update</span>
+        <span><b>Run</b> trains until paused · <b>Step</b> makes one nudge · <b>speed</b>: training steps per second</span>
         <span>{OPTIMIZER_KEY}</span>
       </p>
 
@@ -424,7 +450,7 @@ export function TrainView(props: {
               </span>
             ))}
           </div>
-          <Story>{lossStory(a.history.loss, a.history.val, a.step)}</Story>
+          <Story>{lossStory(a.history.loss, a.history.val, a.step, a.history.step, preset.config.data.noise <= 0.1 && preset.config.data.n >= 400)}</Story>
         </Panel>
 
         <Panel n="④" className="span-4" title={<>{P.grads.title}{comparing && <span className="muted"> · {runs[0].optim.kind}</span>}</>} sub={P.grads.explain}>
