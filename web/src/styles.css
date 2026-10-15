@@ -291,6 +291,26 @@ main { flex: 1; padding: 28px 24px 56px; width: 100%; max-width: 1400px; margin:
 .hero h1 span { color: var(--accent); }
 .hero p { font-size: 17px; color: var(--ink-2); max-width: 600px; line-height: 1.55; margin: 0 0 22px; }
 .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* the home page's network: draws itself in, then loops forward (blue) and backward (orange) */
+.hero { display: grid; grid-template-columns: 1fr 420px; gap: 40px; align-items: center; }
+.hero-net { width: 100%; height: auto; display: block; overflow: visible; }
+.hero-net .hn-base { stroke: var(--line-strong); }
+.hero-net .hn-node .hn-base { fill: var(--panel); stroke-width: 1.5; }
+.hero-net .hn-f, .hero-net .hn-b { opacity: 0; }
+.hero-net .hn-edge .hn-f { stroke: var(--forward); }
+.hero-net .hn-edge .hn-b { stroke: var(--backward); }
+.hero-net .hn-node .hn-f { fill: var(--forward); }
+.hero-net .hn-node .hn-b { fill: var(--backward); }
+.hero-net .hn-edge, .hero-net .hn-node { animation: hn-in 0.6s ease-out var(--in) both; }
+.hero-net .hn-f { animation: hn-flash 5.2s ease-in-out calc(var(--df) + 1.4s) infinite; }
+.hero-net .hn-b { animation: hn-flash 5.2s ease-in-out calc(var(--db) + 1.4s) infinite; }
+.hero-net .hn-labels text { font-size: 12px; fill: var(--muted); text-anchor: middle; }
+@keyframes hn-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hn-flash { 0% { opacity: 0; } 7% { opacity: 0.95; } 24% { opacity: 0; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-net .hn-edge, .hero-net .hn-node, .hero-net .hn-f, .hero-net .hn-b { animation: none; }
+}
 a.button { display: inline-block; text-decoration: none; border: 1px solid var(--line-strong); background: var(--panel); border-radius: 10px; padding: 10px 18px; color: var(--ink); font-weight: 500; }
 a.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .level { margin-top: 44px; }
@@ -352,6 +372,7 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 
 /* ── narrow screens ─────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
+  .hero { grid-template-columns: 1fr 340px; gap: 28px; }
   .span-7, .span-5 { grid-column: span 12; }
   .span-4 { grid-column: span 6; }
   .lab-head { grid-template-columns: 1fr; }
@@ -375,6 +396,8 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
   .lesson-list { grid-template-columns: 1fr; }
   .preset-section { grid-template-columns: 1fr; gap: 10px; }
   .hero h1 { font-size: 32px; }
+  .hero { grid-template-columns: 1fr; gap: 8px; }
+  .hero-net { max-width: 340px; margin: 0 auto; }
   .lab-head h1 { font-size: 25px; }
   .lesson h1 { font-size: 27px; }
 }

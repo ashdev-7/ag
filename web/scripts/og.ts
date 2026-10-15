@@ -79,7 +79,7 @@ function card(png: string) {
 </style></head><body>
   <div>
     <div class="brand">ag<span>·glass</span></div>
-    <h1>Learn how neural networks <span>learn</span></h1>
+    <h1>See <span>inside</span> a neural network</h1>
     <p>Every number a network computes, and every gradient it sends back, drawn live in your browser.</p>
     <div class="tags"><b>17 lessons</b><b>live training</b><b>no install</b></div>
   </div>

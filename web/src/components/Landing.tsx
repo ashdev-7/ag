@@ -5,6 +5,7 @@ import { PRESETS } from '../graph/presets.ts';
 import type { PresetMode } from '../graph/presets.ts';
 import { MODE_INTRO } from '../content/help.tsx';
 import { LESSONS, LEVELS } from '../content/lessons/index.ts';
+import { HeroNet } from './HeroNet.tsx';
 
 const SECTIONS: { mode: PresetMode; title: string }[] = [
   { mode: 'step', title: 'Step through' },
@@ -16,16 +17,19 @@ export function Landing() {
   return (
     <div className="landing">
       <header className="hero">
-        <span className="eyebrow">A course you can watch</span>
-        <h1>Learn how neural networks <span>learn</span></h1>
-        <p>
-          From first principles to modern training, with every idea drawn live: each number a network computes and every
-          gradient it sends back, on a small engine running in your browser.
-        </p>
-        <div className="hero-actions">
-          <a className="button primary" href={`#lesson=${LESSONS[0].id}`}>Start with lesson 1 →</a>
-          <a className="button" href="#preset=moons">Watch a network train</a>
+        <div className="hero-text">
+          <span className="eyebrow">A course you can watch</span>
+          <h1>See <span>inside</span> a neural network</h1>
+          <p>
+            From first principles to modern training, with every idea drawn live: each number a network computes and every
+            gradient it sends back, on a small engine running in your browser.
+          </p>
+          <div className="hero-actions">
+            <a className="button primary" href={`#lesson=${LESSONS[0].id}`}>Start with lesson 1 →</a>
+            <a className="button" href="#preset=moons">Watch a network train</a>
+          </div>
         </div>
+        <HeroNet />
       </header>
 
       {LEVELS.map((lv) => {
