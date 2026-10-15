@@ -16,6 +16,7 @@ import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
 import { GuideCard, Help } from './Guide.tsx';
 import { OPTIM_HELP, PANEL_HELP, TRAIN_GUIDES, TRAIN_SETUP } from '../content/help.tsx';
+import { accuracy, activationStory, boundaryStory, gradStory, lossStory, trend } from '../views/narrate.ts';
 
 export const OPTIMIZERS: OptimConfig['kind'][] = ['sgd', 'momentum', 'nesterov', 'rmsprop', 'adam', 'adamw'];
 const DOMAIN = { x0: -1.5, x1: 1.5, y0: -1.5, y1: 1.5 };
@@ -66,6 +67,15 @@ function useThrottled<T>(value: T, ms: number): T {
   return shown;
 }
 
+/** Steps at which the boundary is photographed for the filmstrip. */
+const FILM_STEPS = [0, 25, 100, 400, 1600];
+
+/** Exponential moving average, for reading a trend through batch noise. */
+function smooth(ys: number[], a = 0.15): number[] {
+  let m = ys[0] ?? 0;
+  return ys.map((y) => (m = Number.isFinite(y) ? a * y + (1 - a) * m : m));
+}
+
 const newRun = (optim: OptimConfig): RunView => ({ optim, history: emptyHistory(), values: {}, grads: {}, step: 0, sps: 0 });
 
 function defaultOther(kind: OptimConfig['kind']): OptimConfig {
@@ -92,11 +102,12 @@ export function TrainView(props: {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [runs, setRuns] = useState<RunView[]>([]);
   const [running, setRunning] = useState(false);
-  const [speed, setSpeed] = useState(10);
+  const [speed, setSpeed] = useState(2);
   const [data, setData] = useState<Dataset | null>(null);
   const [selected, setSelected] = useState<string | undefined>();
   const [inspect, setInspect] = useState<{ value?: Float32Array; grad?: Float32Array; m?: Float32Array; v?: Float32Array; shape: number[] } | null>(null);
   const [epoch, setEpoch] = useState(0);   // bumps on reset, so sessions are rebuilt
+  const [film, setFilm] = useState<{ step: number; grid: { res: number; data: Float32Array } }[]>([]);
   const comparing = optims.length > 1;
 
   const grid: Grid | undefined = preset.boundary ? { ...DOMAIN, res: 60, nodeId: preset.boundary.nodeId, element: preset.boundary.element } : undefined;
@@ -135,6 +146,7 @@ export function TrainView(props: {
       if (dead) return;
       setSessions(made);
       setRuns(views);
+      setFilm(views[0].grid ? [{ step: 0, grid: views[0].grid }] : []);
     })();
     return () => {
       dead = true;
@@ -148,6 +160,13 @@ export function TrainView(props: {
   useEffect(() => props.onUrl({ opt: optims[0].kind, lr: optims[0].lr, cmp: optims[1]?.kind }), [optims]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFrame = useCallback((i: number, f: Frame) => {
+    if (i === 0 && f.grid) {
+      const g = f.grid;
+      setFilm((fs) => {
+        const next = FILM_STEPS.find((s) => s > (fs.at(-1)?.step ?? -1));
+        return next !== undefined && f.step >= next ? [...fs, { step: f.step, grid: { res: g.res, data: g.data.slice() } }] : fs;
+      });
+    }
     setRuns((rs) => rs.map((r, k) => {
       if (k !== i) return r;
       const h = r.history;
@@ -257,13 +276,16 @@ export function TrainView(props: {
 
   if (!runs.length) return <div className="loading">Building the network…</div>;
   const a = runs[0];
+  const acc = a.grid && data ? accuracy(a.grid, DOMAIN, data) : null;
+  const nowNorms = preset.layers.map((l) => ({ label: l.label, norm: a.grads[l.weight]?.l2 ?? 0 }));
+  const relu = preset.spec.nodes.some((n) => n.op === 'relu');
 
   const lossSeries: Series[] = runs.flatMap((r, i) => [
     { label: `${r.optim.kind} train`, color: PALETTE[i], x: r.history.step, y: r.history.loss },
     { label: `${r.optim.kind} validation`, color: PALETTE[i], x: r.history.step, y: r.history.val, dash: true },
   ]);
   const normSeries: Series[] = preset.layers.map((l, i) => ({
-    label: l.label, color: layerColor(i, preset.layers.length), x: a.history.step, y: a.history.norms[l.label] ?? [],
+    label: l.label, color: layerColor(i, preset.layers.length), x: a.history.step, y: smooth(a.history.norms[l.label] ?? []),
   }));
 
   return (
@@ -275,9 +297,9 @@ export function TrainView(props: {
         <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
         <button onClick={stepOnce} disabled={running}>Step</button>
         <button onClick={reset}>Reset</button>
-        <label className="field">steps per frame
-          <input type="range" min={1} max={100} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
-          <span className="counter">{speed}</span>
+        <label className="field">speed <span className="muted">slower</span>
+          <input type="range" min={1} max={100} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Training steps per screen update" />
+          <span className="muted">faster</span> <span className="counter">{speed} step{speed > 1 ? 's' : ''} per update</span>
         </label>
         <span className="counter">step {a.step}{a.sps > 0 ? ` · ${Math.round(a.sps)}/s` : ''}</span>
         <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
@@ -306,6 +328,7 @@ export function TrainView(props: {
           <section className="panel boundary-panel">
             <h4>Decision boundary</h4>
             <Help>{PANEL_HELP.boundary}</Help>
+            <p className="story">{boundaryStory(acc, a.step, a.grid ? Math.max(...a.grid.data) - Math.min(...a.grid.data) : 1)}</p>
             <div className="boundaries">
               {runs.map((r, i) => (
                 <div key={i} className="boundary">
@@ -319,18 +342,35 @@ export function TrainView(props: {
                 </div>
               ))}
             </div>
+            {film.length > 1 && (
+              <>
+                <Help>{PANEL_HELP.film}</Help>
+                <div className="film">
+                  {film.map((f) => (
+                    <figure key={f.step}>
+                      <Canvas height={64} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
+                      <figcaption>step {f.step}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              </>
+            )}
           </section>
         )}
 
         <section className="panel">
           <h4>Loss</h4>
           <Help>{PANEL_HELP.loss}</Help>
+          <p className="story">{lossStory(a.history.loss, a.history.val, a.step)}</p>
           <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, { logY: true })} />
           <Legend items={runs.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i] }))} />
         </section>
 
         <section className="panel">
           <h4>Gradient norm per layer <span className="muted">{comparing ? runs[0].optim.kind : ''}</span></h4>
+          <Help>{PANEL_HELP.gradNow}</Help>
+          <LayerBars layers={nowNorms} />
+          <p className="story">{a.step === 0 ? 'Not trained yet: press Run or Step to compute the first gradients.' : gradStory(nowNorms, preset.layers.map((l) => a.history.norms[l.label] ?? []), trend(a.history.loss) === 'falling')}</p>
           <Help>{PANEL_HELP.gradNorm}</Help>
           <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true })} />
           <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: layerColor(i, preset.layers.length) }))} />
@@ -339,6 +379,7 @@ export function TrainView(props: {
         <section className="panel">
           <h4>Activations per layer</h4>
           <Help>{PANEL_HELP.acts}</Help>
+          <p className="story">{activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</p>
           <div className="hists">
             {preset.layers.map((l) => {
               const s = a.values[l.act];
@@ -404,6 +445,27 @@ export function OptimControls(props: {
       </label>
       {props.loss !== undefined && <span className="muted">loss {fmt(props.loss)}</span>}
       {props.fault && <span className="bad">stopped: nan</span>}
+    </div>
+  );
+}
+
+/** Gradient size per layer right now, as bars on a log scale (first layer on top). */
+function LayerBars({ layers }: { layers: { label: string; norm: number }[] }) {
+  const logs = layers.map((l) => (l.norm > 0 ? Math.log10(l.norm) : -Infinity));
+  const hi = Math.max(...logs.filter(Number.isFinite), -6);
+  const lo = Math.min(hi - 1, ...logs.filter(Number.isFinite));
+  return (
+    <div className="layer-bars">
+      {layers.map((l, i) => {
+        const w = Number.isFinite(logs[i]) ? 6 + 94 * (logs[i] - lo) / Math.max(1e-9, hi - lo) : 0;
+        return (
+          <div key={l.label} className="layer-bar">
+            <span className="muted">{l.label}</span>
+            <span className="bar-track"><span className="bar" style={{ width: `${w}%`, background: layerColor(i, layers.length) }} /></span>
+            <span className="counter">{l.norm > 0 ? fmt(l.norm) : '0'}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

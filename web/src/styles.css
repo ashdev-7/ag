@@ -226,3 +226,19 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
   .lesson h1 { font-size: 25px; }
 }
 .widget-controls.segmented { display: inline-flex; flex-wrap: nowrap; gap: 0; }
+
+/* live captions, definitions, filmstrip, layer bars */
+.story { background: #f6f4fa; border-radius: 6px; padding: 6px 9px; margin: 4px 0 8px; font-size: 13px; line-height: 1.45; }
+.term { border-bottom: 1px dotted currentColor; cursor: help; position: relative; }
+.term:hover::after, .term:focus::after {
+  content: attr(data-def); position: absolute; left: 0; top: calc(100% + 4px); z-index: 30; width: max-content; max-width: 280px;
+  background: #1d1d1f; color: #fff; font: 12px/1.45 system-ui, sans-serif; padding: 6px 9px; border-radius: 6px; white-space: normal;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18); font-weight: normal; text-align: left;
+}
+.film { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.film figure { margin: 0; }
+.film figcaption { font-size: 11px; color: var(--muted); text-align: center; }
+.layer-bars { display: grid; gap: 3px; margin: 2px 0 6px; }
+.layer-bar { display: grid; grid-template-columns: 64px 1fr 70px; align-items: center; gap: 8px; font-size: 12px; }
+.bar-track { background: #f0eef4; border-radius: 3px; height: 10px; overflow: hidden; }
+.bar { display: block; height: 100%; border-radius: 3px; transition: width 0.2s; }

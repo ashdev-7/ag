@@ -36,7 +36,7 @@ export const INTERMEDIATE: Lesson[] = [
     faq: [
       { q: 'Is a tensor anything more than an array?', a: <>In physics the word means more, but in deep learning it simply means an n-dimensional array of numbers with a shape.</> },
       { q: 'Why does the batch not change the gradient’s shape?', a: <>A parameter has the same shape whatever the batch size; its gradient is summed (or averaged, through a mean in the loss) over the examples in the batch.</> },
-      { q: 'What does μ and σ on a box mean?', a: <>The mean and the standard deviation (spread) of all the numbers in that tensor: a two-number summary of an array too big to print.</> },
+      { q: 'What does “0.12 ± 0.40” on a box mean?', a: <>The average of all the numbers in that tensor, ± their typical spread around it (the standard deviation): a two-number summary of an array too big to print. Click the box to see every number.</> },
     ],
     labs: [{
       preset: 'broadcast', hash: 'pass=reverse', label: 'A bias added to every row',

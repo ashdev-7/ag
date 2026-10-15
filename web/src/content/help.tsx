@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react';
 import type { OptimConfig, PassKind } from '../engine/protocol.ts';
+import { Term } from './glossary.tsx';
 
 // ── the three kinds of lab ─────────────────────────────────────────────────
 
@@ -22,11 +23,11 @@ export const PASS_HELP: Record<PassKind, { title: string; body: ReactNode }> = {
   },
   reverse: {
     title: 'Backward (reverse mode)',
-    body: <>The forward pass, then the gradient of the loss for every box. It starts at the loss with <code>∂L/∂L = 1</code> and walks back one arrow per step; each step multiplies the gradient arriving at a box by that box’s local derivative and adds the result to the input’s gradient (the chain rule). One pass gives every gradient.</>,
+    body: <>The forward pass, then the <Term t="gradient" /> of the loss for every box. It starts at the loss with <code>∂L/∂L = 1</code> and walks back one arrow per step; each step multiplies the gradient arriving at a box by that box’s <Term t="local derivative" /> and adds the result to the input’s gradient (the <Term t="chain rule" />). One pass gives every gradient.</>,
   },
   train: {
     title: 'Train step',
-    body: <>One full iteration of a training loop: take the next batch of data, run forward and backward, then let the optimizer update every parameter (purple boxes) using its gradient. Stepping back undoes the update; <i>Next train step</i> keeps it and starts another. Repeat thousands of times and you have training.</>,
+    body: <>One full iteration of a training loop: take the next <Term t="batch" /> of data, run forward and backward, then let the <Term t="optimizer" /> update every <Term t="parameter" /> (purple boxes) using its gradient. Stepping back undoes the update; <i>Next train step</i> keeps it and starts another. Repeat thousands of times and you have training.</>,
   },
   forwardMode: {
     title: 'Forward mode',
@@ -35,14 +36,14 @@ export const PASS_HELP: Record<PassKind, { title: string; body: ReactNode }> = {
 };
 
 export const ZOOM_HELP: Record<'tensor' | 'scalar', ReactNode> = {
-  tensor: <><b>Tensors:</b> each box is a whole array (its shape in brackets); a box shows the mean <code>μ</code> and spread <code>σ</code> of its numbers. Click a box to see every number.</>,
+  tensor: <><b>Tensors:</b> each box is a whole array (a <Term t="tensor" />, its shape in brackets) and shows the average of its numbers ± their spread. Click a box to see every number.</>,
   scalar: <><b>Single numbers:</b> every array is opened up so each box holds one number. A matrix multiply becomes its individual multiplies and adds, so you can follow one number all the way.</>,
 };
 
 export const GRAPH_LEGEND: ReactNode = (
   <>
     <span className="key-value">blue</span> value ·{' '}
-    <span className="key-grad">∂</span> gradient of the loss with respect to that box (<span className="key-tan">ṫ</span> in forward mode: the carried nudge) ·
+    <span className="key-grad">∂</span> <Term t="gradient" /> of the loss with respect to that box (<span className="key-tan">ṫ</span> in forward mode: the <Term t="tangent" />) ·
     purple box: a parameter the optimizer learns · grey box: a fixed input ·
     thick outline: the step that just ran · dashed outline: the box you selected · faded: not computed yet · dashed arrow: no gradient flows back through it
   </>
@@ -130,13 +131,15 @@ export const TRAIN_GUIDES: Record<string, Guide> = {
 };
 
 export const PANEL_HELP = {
-  network: <>The network as it trains. Each box shows the mean <code>μ</code> and spread <code>σ</code> of its values (blue) and gradients (orange) over the current batch. Thicker arrows carry larger gradients back. Click a purple weight box to look inside.</>,
-  boundary: <>What the network predicts at every point of the square: orange where it says “orange class”, blue where it says “blue class”, pale where it is unsure; the boundary is where it is 50/50. Dots are the data, coloured by their true class.</>,
-  loss: <>Cross-entropy: for each point, <code>−log(probability the network gives the correct class)</code>, averaged. 0 means certain and right; 0.69 (= ln 2) is a coin flip between two classes. <b>Solid:</b> the batch just trained on (jumpy, because every batch differs). <b>Dashed:</b> the held-out points, never trained on; if it rises while solid falls, the network is memorising.</>,
-  gradNorm: <>For each layer, the size of the gradient of its weight matrix, <code>√(Σ (∂L/∂w)²)</code>, on the current batch. It shows which layers are actually being pushed to change. Layers are coloured from the first (dark) to the last (orange).</>,
-  acts: <>For each layer, a histogram of its outputs over the current batch, lowest to highest value. The share of outputs that are exactly zero is in brackets; turns red above 90% (dead ReLUs).</>,
-  inspect: <>The selected array as coloured cells (orange positive, blue negative, white zero): its values, its gradient, and the optimizer’s memory for it. The first moment is the running average of past gradients (momentum, Adam); the second moment is the running average of squared gradients (RMSProp, Adam). Plain SGD keeps neither.</>,
-  controls: <><b>Run</b> trains continuously; <b>Step</b> does exactly one training step; <b>Reset</b> goes back to the initial weights. <b>Steps per frame</b> is how many training steps run between screen updates: more is faster. <b>lr</b> is the learning rate, the step size. <b>clip</b>: if the gradient of all weights together is longer than this, it is scaled down to this length before the update (0 = off).</>,
+  network: <>The network itself, left to right: data in, <Term t="layer">layers</Term>, <Term t="loss" /> out. Purple boxes are <Term t="parameter">parameters</Term> being learned. Each box shows the average and spread of its numbers (blue) and of its <Term t="gradient">gradients</Term> (orange). Thicker arrows carry bigger gradients back. Click a purple box to look inside.</>,
+  boundary: <>Every point of the square is coloured by what the network would answer there: orange for “orange class”, blue for “blue class”, pale where it is unsure. The <Term t="decision boundary" /> is the pale line between. Dots are the real data, coloured by their true class. Good training means each dot sits on a background of its own colour.</>,
+  film: <>The same picture at earlier moments, so you can see how the boundary formed even if you missed it.</>,
+  loss: <>How wrong the network is (<Term t="cross-entropy" />): 0 is perfect, 0.69 is 50/50 guessing. <b>Solid:</b> the <Term t="batch" /> just trained on, jumpy because every batch differs. <b>Dashed:</b> the <Term t="held-out" /> points, never trained on. <Term t="log scale">Log scale</Term>.</>,
+  gradNow: <>How hard each layer is being pushed to change right now: the <Term t="gradient norm" /> of its weights, first layer at the top. Longer bar, bigger push. Bars use a <Term t="log scale" />: each mark is 10×.</>,
+  gradNorm: <>The same sizes over time, smoothed. A layer whose line sits far below the others is barely learning.</>,
+  acts: <>What each layer outputs for the current batch, as a <Term t="histogram" />: lowest value on the left, highest on the right. If almost everything piles up at exactly 0, those are <Term t="dead unit">dead units</Term>.</>,
+  inspect: <>The selected array as coloured cells (orange positive, blue negative, white near zero): its values, its gradients, and the <Term t="optimizer" />’s memory for it (running averages of past gradients, used by <Term t="momentum" /> and Adam).</>,
+  controls: <><b>Run</b> trains continuously; <b>Step</b> does exactly one training <Term t="step" />; <b>Reset</b> starts over from the same initial weights. <b>Speed</b> sets how many training steps happen between screen updates. <b>lr</b> is the <Term t="learning rate" />; <b>clip</b> is <Term t="clip">gradient clipping</Term>.</>,
 };
 
 export const OPTIM_HELP: Record<OptimConfig['kind'], ReactNode> = {

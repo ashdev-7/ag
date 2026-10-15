@@ -31,7 +31,8 @@ function summary(s: Stats | undefined, shape: number[] | undefined): string {
   if (!s) return '';
   const n = shape ? shape.reduce((a, b) => a * b, 1) : 1;
   if (s.nonFinite) return 'nan';
-  return n === 1 ? fmt(s.mean) : `μ ${fmt(s.mean)}  σ ${fmt(s.std)}`;
+  // average ± spread: the two numbers that summarise an array
+  return n === 1 ? fmt(s.mean) : `${fmt(s.mean)} ± ${fmt(s.std)}`;
 }
 
 const OpNode = memo(function OpNode({ data }: NodeProps<Node<OpData>>) {

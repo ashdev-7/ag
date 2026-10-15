@@ -13,6 +13,7 @@ import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
 import { GuideCard, Help } from './Guide.tsx';
 import { OPTIM_HELP, RACE_GUIDES, RACE_HELP } from '../content/help.tsx';
+import { raceStory } from '../views/narrate.ts';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
 
@@ -132,6 +133,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
         <section className="panel">
           <h4>Loss over steps</h4>
           <Help>{RACE_HELP.loss}</Help>
+          <p className="story">{raceStory(racers.map((r) => ({ name: r.optim.kind, loss: r.loss, diverged: r.done === 'diverged' })))}</p>
           <Canvas height={220} draw={(ctx, w, h) => drawLines(ctx, w, h,
             racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], x: r.steps, y: r.loss })), { logY: true })} />
         </section>
