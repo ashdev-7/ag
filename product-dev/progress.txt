@@ -934,3 +934,42 @@ ANSWERED
   6. Verified on the final build: 66 unit tests, 175 engine checks, 157
      stepper checks, behaviour all passed, smoke 96/96 in Chromium,
      Firefox and WebKit.
+
+
+------------------------------------------------------------------------
+ENTRY 16   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Does each module really solve the problem it says it solves, or does it
+  beat around the bush? Remove the "I have completed" tracking. Use a
+  green dot instead of a green tick anywhere.
+
+ANSWERED
+  1. Tracking removed: the "I've read this lesson" box, read ticks on the
+     landing page, "Continue: ..." and the localStorage behind them. The
+     reverse-vs-forward check shows a coloured dot instead of a tick/cross.
+
+  2. Audit of all 17 lessons, against their own question and the engine.
+     Most answer directly (problem, mechanism, formula, worked number).
+     Fixed where they asserted instead of showing:
+     - non-linearity: XOR solved by hand with two ReLUs (a table);
+     - classification: squared error vs cross-entropy push, in numbers
+       (0.04 vs 0.99 at p = 0.01);
+     - capacity: asked "what happens with too few neurons" and never
+       showed it. New lab: spirals with one layer of 4 (loss stuck ~0.6,
+       accuracy ~60%, train and test together), switch to 2 x 32.
+     Wrong numbers corrected to measurements: Moons layer spread (up to
+     17x, was "factor of 4"), vanishing (700-10,000x), Circles (97% by
+     step 50, was "a few hundred steps"), XOR "needs 8" (2 do). Stale
+     instructions from the redesign updated.
+
+  3. "Set sgd's lr to 0.11 ... it diverges" was not visible: in the
+     120-step race the loss grew to 6e19 without overflowing, so nothing
+     said diverged. The race now marks a racer diverged once its loss is
+     1,000x its start, and keeps it stopped on resume.
+
+  4. Every number the lessons state is a check in scripts/behaviour.ts;
+     smoke checks the diverged mark on screen.
+
+  5. Verified: 66 unit tests; behaviour all passed; smoke 101/101 in
+     Chromium, Firefox and WebKit.
