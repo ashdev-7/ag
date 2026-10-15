@@ -1,7 +1,6 @@
 // One lesson: the question, the story from the problem to where the idea is
 // used, the questions a reader is about to ask, and labs to see it happen.
 
-import { useEffect } from 'react';
 import { labHref, LESSONS, LEVELS } from '../content/lessons/index.ts';
 import type { Lesson } from '../content/lessons/index.ts';
 
@@ -9,7 +8,6 @@ export function LessonView({ lesson }: { lesson: Lesson }) {
   const i = LESSONS.indexOf(lesson);
   const prev = LESSONS[i - 1], next = LESSONS[i + 1];
   const level = LEVELS.find((l) => l.level === lesson.level)!;
-  useEffect(() => window.scrollTo(0, 0), [lesson]);
 
   return (
     <article className="lesson">

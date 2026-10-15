@@ -87,7 +87,7 @@ try {
   for (const p of PRESETS) {
     errors.length = 0;
     await page.goto(`${base}#preset=${p.id}`);
-    await page.waitForSelector('.engine-ready', { timeout: 20000 });
+    await page.waitForSelector('.app[data-engine="ready"]', { timeout: 20000 });
     if (p.mode === 'step') {
       await page.waitForSelector('.react-flow__node');
       // every edge, drawn: a race in React Flow once left graphs with none
@@ -171,7 +171,7 @@ try {
   // two optimizers side by side
   errors.length = 0;
   await page.goto(`${base}#preset=moons&opt=sgd&lr=0.3&cmp=adam`);
-  await page.waitForSelector('.engine-ready');
+  await page.waitForSelector('.app[data-engine="ready"]');
   await page.waitForSelector('.train-view');
   check((await page.locator('.optim').count()) === 2, 'compare: two optimizers from the link');
   await page.getByRole('button', { name: 'Run' }).click();
@@ -184,7 +184,7 @@ try {
   errors.length = 0;
   await page.goto(`${base}#preset=moons`);
   await page.waitForSelector('.train-view');
-  await page.waitForSelector('.engine-ready');
+  await page.waitForSelector('.app[data-engine="ready"]');
   for (const [sps, ms] of [[1, 4000], [5, 4000]] as const) {
     await setSpeed(sps);
     const { step, secs } = await trainFor(ms);

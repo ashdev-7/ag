@@ -24,9 +24,9 @@ export function Recorded({ preset }: { preset: Preset }) {
       .then(setRec, () => setRec('missing'));
   }, [preset]);
 
-  if (rec === null) return <div className="loading">Loading the recording…</div>;
+  if (rec === null) return <div className="loading" role="status" aria-label="Loading"><span /><span /><span /></div>;
   if (rec === 'missing')
-    return <div className="loading">Stepping needs the live engine, which could not start in this browser. Try a recent Chrome, Firefox or Safari.</div>;
+    return <div className="loading">This lab needs to run live, and this browser can’t. A recent Chrome, Firefox or Safari will open it.</div>;
 
   if ('surface' in rec) {
     const race = preset.race!;

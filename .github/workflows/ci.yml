@@ -71,6 +71,11 @@ jobs:
           node scripts/smoke.ts smoke-shots chromium
           node scripts/smoke.ts smoke-shots firefox
           node scripts/smoke.ts smoke-shots webkit
+      - name: click through every page without reloading (Chromium, Firefox, WebKit)
+        run: |
+          node scripts/navigate.ts chromium
+          node scripts/navigate.ts firefox
+          node scripts/navigate.ts webkit
       - uses: actions/upload-artifact@v4
         if: always()
         with:

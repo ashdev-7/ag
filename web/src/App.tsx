@@ -3,7 +3,7 @@
 // restarts, the view is remounted and rebuilds its sessions from the spec and
 // seed, so a crash costs the current run and nothing else.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createEngineClient } from './engine/client.ts';
 import type { EngineStatus } from './engine/client.ts';
 import { findPreset, PRESETS } from './graph/presets.ts';
@@ -31,14 +31,37 @@ export function App() {
   useEffect(() => () => client.dispose(), [client]);
 
   const [url, setUrl] = useState<UrlState>(() => fromUrlHash(window.location.hash));
+  // a page opened by a click (a link, the menu) starts at the top; back and
+  // forward leave the browser to return the reader to where they were
+  const clicked = useRef(false);
   useEffect(() => {
     const onHash = () => setUrl(fromUrlHash(window.location.hash));
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      if (a && !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) clicked.current = true;
+    };
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      document.removeEventListener('click', onClick, true);
+    };
   }, []);
-  // views report their shareable state; written without adding history entries
-  const updateUrl = useCallback((u: Partial<UrlState>) => {
+  const page = url.lesson ? `lesson:${url.lesson}` : url.preset ? `preset:${url.preset}` : 'home';
+  useLayoutEffect(() => {
+    if (clicked.current) window.scrollTo(0, 0);
+    clicked.current = false;
+  }, [page]);
+
+  // views report their shareable state, written without adding history
+  // entries. Only the view for the page in the address may write: a view
+  // that is being left can still finish a step after the reader has moved
+  // on, and its write would put its own address over the page they chose
+  const updateUrl = useCallback((owner: string, u: Partial<UrlState>) => {
+    const here = fromUrlHash(window.location.hash);
+    if (here.preset !== owner || here.lesson) return;
     setUrl((cur) => {
+      if (cur.preset !== owner || cur.lesson) return cur;
       const next = { ...cur, ...u };
       history.replaceState(null, '', toUrlHash(next));
       return next;
@@ -47,16 +70,21 @@ export function App() {
 
   const [banner, setBanner] = useState<Banner | undefined>();
   const onBanner = useCallback((b?: Banner) => setBanner(b), []);
+  // a crashed engine restarts by itself and the lab rebuilds its run: that
+  // is ours to handle, so the reader is not told. Only a browser that cannot
+  // run the labs at all gets one plain sentence
   useEffect(() => {
-    if (status.state === 'restarting') setBanner({ kind: 'error', text: describe(status.error), error: status.error });
-    if (status.state === 'unavailable') setBanner({ kind: 'error', text: describe({ ...status.error, code: 'WasmLoadFailed' }), error: status.error });
+    if (status.state === 'unavailable') setBanner({ kind: 'info', text: describe({ ...status.error, code: 'WasmLoadFailed' }) });
   }, [status]);
 
   const preset = findPreset(url.preset);
   const seed = url.seed ?? preset?.config.seed ?? 1;
+  const presetId = preset?.id ?? '';
+  const onUrl = useCallback((u: Partial<UrlState>) => updateUrl(presetId, u), [updateUrl, presetId]);
 
   const pick = (id: string) => {
     setBanner(undefined);
+    clicked.current = true;
     window.location.hash = toUrlHash({ preset: id });
   };
 
@@ -66,17 +94,17 @@ export function App() {
   if (lesson) body = <LessonView lesson={lesson} />;
   else if (!preset) body = <Landing />;
   else if (status.state === 'unavailable') body = <Recorded preset={preset} />;
-  else if (status.state !== 'ready') body = <div className="loading">Starting the engine…</div>;
+  else if (status.state !== 'ready') body = <div className="loading" role="status" aria-label="Loading"><span /><span /><span /></div>;
   else {
     const key = `${preset.id}:${seed}:${status.generation}`;
-    const common = { client, preset, seed, url, onUrl: updateUrl, onBanner };
+    const common = { client, preset, seed, url, onUrl, onBanner };
     body = preset.mode === 'step' ? <StepView key={key} {...common} />
       : preset.mode === 'train' ? <TrainView key={key} {...common} />
       : <RaceView key={key} client={client} preset={preset} seed={seed} onBanner={onBanner} />;
   }
 
   return (
-    <div className="app">
+    <div className="app" data-engine={status.state}>
       <nav className="top">
         <a className="brand" href="#">ag<span>·glass</span></a>
         {lesson && <a className="nav-link" href="#">All lessons</a>}
@@ -92,12 +120,11 @@ export function App() {
             <span className="blurb" />
             {preset.mode !== 'race' && (
               <label className="field">seed
-                <input type="number" value={seed} min={0} onChange={(e) => updateUrl({ seed: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                <input type="number" value={seed} min={0} onChange={(e) => onUrl({ seed: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
               </label>
             )}
           </>
         )}
-        <span className={`engine-dot engine-${status.state}`} title={`engine: ${status.state}`} />
       </nav>
       <ErrorBanner banner={banner} onDismiss={() => setBanner(undefined)} />
       <main>{body}</main>

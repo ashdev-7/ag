@@ -33,7 +33,7 @@ export function describe(e: EngineError): string {
     case 'OutOfMemory': return 'The engine is out of memory. Close a comparison or pick a smaller preset.';
     case 'WorkerCrashed':
     case 'Timeout': return 'The engine stopped responding and is restarting. The run starts again from step 0.';
-    case 'WasmLoadFailed': return 'The engine could not start in this browser. Showing recorded runs instead.';
+    case 'WasmLoadFailed': return 'This browser can’t run the live labs, so you’re seeing recorded runs. A recent Chrome, Firefox or Safari runs them live.';
     default: return e.message;
   }
 }
