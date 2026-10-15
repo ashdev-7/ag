@@ -580,3 +580,73 @@ ANSWERED
   8. Next
      Release prep: product name, licence, push, watch CI, switch on GitHub
      Pages. Then Phase 2.
+
+
+------------------------------------------------------------------------
+ENTRY 9   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Push and deploy (done: pushed; GitHub Pages switched on by the user, the
+  custom-domain box cleared, the pages workflow run by hand). Then: check
+  the logic behind every step the site performs, and explain it. Clarified:
+  the explanations must be on the site itself, so a visitor understands
+  the modes (forward, backward, train step, forward mode, reverse vs
+  forward), every step and every number, including how the loss and the
+  error figures are calculated, without opening another tab.
+
+ANSWERED
+  1. Checking the logic
+     - New scripts/verify.ts (npm run verify, in CI): runs each stepping
+       preset one micro-step at a time against a double-precision
+       reference whose derivatives all come from finite differences. Each
+       forward value, the seed, each backward edge's share, that a node is
+       complete before it sends, each SGD update, and forward mode for
+       every input number. 157 checks pass; a 1% change to one rule fails.
+     - Bug found: validation and training-set loss were not plain means.
+       Evaluation padded its last batch by repeating rows, so some rows
+       counted more (with 80 validation rows and batches of 256, 16 rows
+       counted 4 times, the rest 3). The figure moved by up to 7.9% with
+       the batch size alone. Now exact; a test checks batch sizes 1, 7,
+       128 and 512 agree.
+     - Bug found: on a log-scale chart, values at or below zero were
+       clamped to 1e-12; the saddle race's loss (minimum -1) looked pinned
+       at the floor. Charts now fall back to a linear scale and say which.
+     - Preset claims were checked against recorded runs. Dead ReLUs was
+       understated: all hidden units are dead, every weight gradient is 0
+       and the loss stays at 0.69. Text corrected.
+     - Found while writing the train-step text: in the stepper, rewinding a
+       train step undoes its update (correct), but that left no way to
+       chain train steps and see the loss fall. Added "Next train step".
+
+  2. Explanations on the site (all text in web/src/content/help.tsx)
+     - Landing: the six ideas (graph, forward pass, loss, gradient,
+       backward pass, optimizer) and where to start.
+     - Every example: an "About this example" card, what it shows and
+       what to try.
+     - Stepper: the selected pass and zoom explained under the buttons;
+       every step explained in words with the arithmetic in numbers when
+       the boxes hold single numbers; a legend for the graph; the
+       reverse-vs-forward table explained with its error formula
+       |reverse - forward| / max(1, |reverse|).
+     - Training: every chart and control, including what cross-entropy is
+       (-log of the probability of the right class, averaged; 0.69 is a
+       coin flip), solid vs dashed loss, the decision boundary, gradient
+       norms, histograms, optimizer state, lr and clip; the rule of each
+       optimizer in use.
+     - Race: each surface's formula and minimum, what the paths and the
+       loss chart show.
+
+  3. Verified
+     Engine 172 checks; web unit tests 42; verify 157; smoke 62 checks in
+     Chromium (Firefox and WebKit run in CI). Screens inspected by
+     screenshot: landing, expression, neuron train steps, moons, saddle.
+
+  4. Commits
+     43ae0bb fix(engine): validation and training-set loss are exact means over rows
+     fefa915 test: check every stepper step against an independent reference
+     4df6630 fix(web): charts use a log scale only when every value is positive
+     f91e98d feat(web): explain every screen on the page itself
+     plus this entry
+
+  5. Next
+     Re-run the pages workflow so the live site gets these changes.
