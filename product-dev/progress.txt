@@ -879,3 +879,58 @@ ANSWERED
      WebKit the key/link checks, but the previous commit, run in the same
      session, fails the same checks: timing on a loaded machine, not this
      change.
+
+
+------------------------------------------------------------------------
+ENTRY 15   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Training is too fast even at the slowest speed. Why does it predict the
+  test set so well, why is there no overfitting anywhere? Some labs, like
+  the narrow bowl, are too fast to follow. Test and check every fix
+  exhaustively.
+
+ANSWERED
+  1. Speed. The slider chose steps per display frame, so its slowest
+     setting was about 60 steps a second. It now picks steps per second
+     (1 to 3,000), kept by the worker's clock (engine/pacing.ts): step k is
+     due at k/speed seconds; a slow page catches up with several steps a
+     frame. Measured in the browser: 1/s gives 1 a second; every lab
+     within 5% of its speed in Chromium, Firefox and WebKit.
+
+  2. Why no overfitting. The labs train on 320 dots, noise 0.06 in plot
+     units, with 100 to 1,200 weights: the dots cover the shape densely
+     and barely overlap, so fitting them is learning the shape. New lab
+     "Overfitting": 64x64 network (~4,400 weights), 50 dots of noise 0.3,
+     half held out. Measured: test loss lowest 0.30 at step 50, 0.95 at
+     800, training loss 0.02. A switch gives the same network 400 dots:
+     test loss stays 0.26-0.27. The loss caption names overfitting when
+     the test loss turns around and explains why the clean labs do not;
+     the training-loop lesson links both labs.
+
+  3. Watchable labs. Measured arrivals: the bowl is over in ~50 steps
+     (was under half a second), the saddle ~430, Rosenbrock ~2,800 (sgd).
+     Races now stop a little past the slowest arrival (120 / 600 / 3,000
+     steps) at 5 / 20 / 100 steps/s, with a step counter. Training labs
+     open at moons 20, circles 5 (90% accuracy at step 25), xor 10,
+     spirals 100, vanishing 50, overfit 20.
+
+  4. scripts/behaviour.ts (npm run behaviour, in CI) checks every claim
+     the labs make against the engine. It found the vanishing text's
+     "about 10,000x" is 700-10,000x by batch: now "thousands of times".
+
+  5. Found by the browser checks and fixed:
+     - the decision boundary was recomputed every frame: 39 ms on the
+       64-wide network, leaving 7 steps/s in Firefox. Now on a time
+       budget, at most a fifth of the worker's time.
+     - the neuron diagram swept the whole network once per neuron (130
+       sweeps every 0.5 s). The engine now returns a whole layer from one
+       sweep (element = -1), tested against the per-element path.
+     - the diagram grew to 936 px for 64-wide layers (now at most 520);
+       hover text named layers "layer 1 (tanh),layer 1,L1".
+     - a fresh load of a step link (#...&i=7) showed step 0 in Firefox:
+       a needless restart for the forward-mode direction raced the jump.
+
+  6. Verified on the final build: 66 unit tests, 175 engine checks, 157
+     stepper checks, behaviour all passed, smoke 96/96 in Chromium,
+     Firefox and WebKit.
