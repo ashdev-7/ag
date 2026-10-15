@@ -783,3 +783,53 @@ ANSWERED
   - Smoke test: hovering a hidden neuron must explain it, on every training
     lab; 86 checks pass. Not done: the stepping labs keep the operation
     graph only (they step through operations, not neurons).
+
+
+------------------------------------------------------------------------
+ENTRY 13   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  There still isn't any explanation. Someone on their first day of
+  learning deep learning must understand the whole site, and the
+  explanation must be upfront and intuitive: no click-to-read, no
+  redirects.
+
+ANSWERED
+  0. Found first: the public site (ashdev-7.github.io/ag) still serves the
+     very first build (bundle index-CM0LQdNH.js, the old "A glass box for
+     neural networks" page). None of the course, captions, neuron diagram
+     or explanations from entries 9-12 are live; the pages workflow has to
+     be run again by hand after each push.
+
+  1. Nothing hidden: the collapsible "About this example" cards, the
+     small grey help lines and the lesson redirects were the wrong design
+     for this. Every lab now opens with an always-visible intro: the task
+     in plain words, how it works, what to notice, and numbered "do this"
+     steps. The old collapsible card component was deleted, and unused
+     help text with it.
+
+  2. Training screen, rewritten top to bottom for a first-day reader:
+     a plain headline per lab ("Teach a network to tell blue points from
+     orange points"), how training works in one paragraph, and six
+     numbered panels with question titles ("③ How wrong is the network?
+     (lower is better)"), each explained at reading size with a "Right
+     now:" caption. Charts carry axis names and a "guessing 50/50 (0.69)"
+     reference line; the boundary has a colour key; the neuron diagram has
+     a caption under every column ("the dot's position", "learn simple
+     shapes", "combine them", "the answer"); panel ⑥ picks a layer from a
+     list instead of requiring a click on the graph.
+
+  3. Stepping screen: what the boxes, arrows, blue values and orange
+     gradients are, in the intro; all four modes explained side by side
+     before any is clicked, plus the selected one in detail; the graph key
+     above the graph; the step panel says what a local slope is where it
+     uses one.
+
+  4. Race: what an optimizer and a landscape are, with start (○) and
+     lowest points (★) drawn on the surface; each optimizer described in
+     plain words; the caption now says who reached the bottom first once
+     all have (it used to call one of four equal finishers "furthest
+     behind").
+
+  5. Verified: 51 unit tests, smoke 86 checks in Chromium, all three
+     screens read by screenshot as a first-day reader would.
