@@ -50,6 +50,8 @@ jobs:
       - run: npm test
       - name: every stepper step against an independent reference
         run: npm run verify
+      - name: every training lab and race does what its text says
+        run: npm run behaviour
       - run: npm run build
       - name: browser smoke test (Chromium, Firefox, WebKit)
         run: |

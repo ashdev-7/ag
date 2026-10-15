@@ -4,7 +4,7 @@
 //
 //   npm run build && node scripts/perf.ts [chromium|firefox|webkit]
 //
-// For each training preset, at the default and at the highest speed: the
+// For each training preset, at the speed it opens at and at the highest: the
 // interval between animation frames while training runs (median, 95th
 // percentile, worst, share of frames over 16.7 ms) and the steps per second
 // reached. For stepping: the time from a key press to the new step being on
@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Page } from 'playwright';
 import { PRESETS } from '../src/graph/presets.ts';
+import { SPEEDS } from '../src/views/speed.ts';
 
 const browserName = process.argv[2] ?? 'chromium';
 const browserType = ({ chromium, firefox, webkit } as const)[browserName as 'chromium'];
@@ -63,14 +64,14 @@ try {
   console.log('training: frame interval in ms while running');
   row(['preset', 'speed', 'p50', 'p95', 'max', '>16.7ms', 'steps/s']);
   for (const p of PRESETS.filter((q) => q.mode === 'train')) {
-    for (const speed of [10, 100]) {
+    for (const speed of [p.speed ?? 10, SPEEDS.at(-1)!]) {
       await page.goto(`${base}#preset=${p.id}`);
       await page.reload();
       await page.waitForSelector('.train-view');
-      await page.locator('.toolbar input[type=range]').first().fill(String(speed));
+      await page.getByLabel('Training speed').fill(String(SPEEDS.indexOf(speed)));
       await page.getByRole('button', { name: 'Run' }).click();
       await sleep(1000);   // past start-up
-      const counter = () => page.locator('.toolbar .counter').last().textContent();
+      const counter = () => page.locator('.toolbar .step-count').textContent();
       const s0 = Number(/step (\d+)/.exec((await counter()) ?? '')?.[1] ?? 0);
       const t0 = Date.now();
       const iv = await frames(page, 3000);

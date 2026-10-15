@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "record": "node scripts/record.ts",
-    "verify": "node scripts/verify.ts"
+    "verify": "node scripts/verify.ts",
+    "behaviour": "node scripts/behaviour.ts"
   },
   "dependencies": {
     "@dagrejs/dagre": "1.1.4",

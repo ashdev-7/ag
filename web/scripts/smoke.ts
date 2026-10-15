@@ -12,7 +12,9 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
+import type { Page } from 'playwright';
 import { PRESETS } from '../src/graph/presets.ts';
+import { SPEEDS } from '../src/views/speed.ts';
 
 const browserName = process.argv[3] ?? 'chromium';
 const browserType = ({ chromium, firefox, webkit } as const)[browserName as 'chromium'];
@@ -31,6 +33,22 @@ const check = (ok: boolean, label: string) => {
   if (!ok) failed++;
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let page: Page;
+
+/** Run, wait, pause; the training step reached and the seconds it ran. */
+async function trainFor(ms: number): Promise<{ step: number; secs: number }> {
+  const read = async () => Number(/step (\d+)/.exec((await page.locator('.toolbar .step-count').textContent()) ?? '')?.[1] ?? 0);
+  const before = await read();
+  const t0 = Date.now();
+  await page.getByRole('button', { name: 'Run' }).click();
+  await sleep(ms);
+  await page.getByRole('button', { name: 'Pause' }).click();
+  const secs = (Date.now() - t0) / 1000;
+  await sleep(300);   // the last frame in flight
+  return { step: (await read()) - before, secs };
+}
+
+const setSpeed = (stepsPerSecond: number) => page.getByLabel('Training speed').fill(String(SPEEDS.indexOf(stepsPerSecond)));
 
 try {
   for (let i = 0; i < 40; ++i) {
@@ -39,7 +57,7 @@ try {
   }
   const browser = await browserType.launch();
   console.log(`browser: ${browserName} ${browser.version()}`);
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors: string[] = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -118,20 +136,20 @@ try {
       await page.getByRole('button', { name: 'Tensors', exact: true }).click();
     } else if (p.mode === 'train') {
       await page.waitForSelector('.train-view');
-      await page.getByRole('button', { name: 'Run' }).click();
-      await sleep(3000);
-      await page.getByRole('button', { name: 'Pause' }).click();
-      const text = await page.locator('.toolbar .counter').last().textContent();
-      const step = Number(/step (\d+)/.exec(text ?? '')?.[1] ?? 0);
-      check(step > 100, `${p.id}: trained ${step} steps in 3 s`);
+      // trains at the speed the lab opens at: never faster, not far slower
+      const { step, secs } = await trainFor(3000);
+      const want = (p.speed ?? 10) * secs;
+      check(step <= want * 1.25 + 2 && step >= want * 0.5,
+        `${p.id}: trains at its ${p.speed ?? 10} steps/s (${step} steps in ${secs.toFixed(1)} s)`);
       // the neuron diagram: hovering the first hidden neuron explains it
       const net = await page.locator('.neurons canvas').boundingBox();
-      let explained = false;
-      for (let y = 0.05; y < 0.95 && !explained && net; y += 0.008) {
+      let explained = false, said = '';
+      for (let y = 0.03; y < 0.95 && !explained && net; y += 0.006) {
         await page.mouse.move(net.x + 24 + (net.width - 122) / (p.layers.length) + 4, net.y + net.height * y);
-        explained = /neuron \d+: it adds up/.test((await page.locator('.neurons .story').textContent()) ?? '');
+        said = (await page.locator('.neurons .story').textContent()) ?? '';
+        explained = /^layer \d+ \(\w+\), neuron \d+: it adds up/.test(said);
       }
-      check(explained, `${p.id}: hovering a neuron explains it`);
+      check(explained, `${p.id}: hovering a neuron explains it${explained ? '' : ` (last said: ${said.slice(0, 60)})`}`);
       await page.getByRole('button', { name: 'Calculations' }).click();
       await page.waitForSelector('.react-flow__node');
       await page.locator('.react-flow__node', { hasText: 'W1' }).first().click();
@@ -139,10 +157,13 @@ try {
       await page.screenshot({ path: join(shots, `${p.id}.png`), fullPage: true });
     } else {
       await page.waitForSelector('.race-view');
+      const t0 = Date.now();
       await page.getByRole('button', { name: 'Race' }).click();
       await sleep(3000);
+      const raced = Number(/step (\d+)/.exec((await page.locator('.step-count').textContent()) ?? '')?.[1] ?? 0);
+      const want = p.speed! * (Date.now() - t0) / 1000;
+      check(raced <= want * 1.25 + 2 && raced >= want * 0.5, `${p.id}: races at its ${p.speed} steps/s (step ${raced} after 3 s)`);
       await page.screenshot({ path: join(shots, `${p.id}.png`) });
-      check(true, `${p.id}: raced`);
     }
     check(errors.length === 0, `${p.id}: no console errors${errors.length ? ': ' + errors.slice(0, 2).join(' | ') : ''}`);
   }
@@ -158,6 +179,28 @@ try {
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.screenshot({ path: join(shots, 'compare.png'), fullPage: true });
   check(errors.length === 0, `compare: no console errors${errors.length ? ': ' + errors[0] : ''}`);
+
+  // slow speeds are really slow: steps per second, not per display frame
+  errors.length = 0;
+  await page.goto(`${base}#preset=moons`);
+  await page.waitForSelector('.train-view');
+  await page.waitForSelector('.engine-ready');
+  for (const [sps, ms] of [[1, 4000], [5, 4000]] as const) {
+    await setSpeed(sps);
+    const { step, secs } = await trainFor(ms);
+    // step k is due at k / speed seconds, the first at once; one more for the
+    // delay between the page's clock and the worker's
+    check(step <= Math.floor(sps * secs) + 2 && step >= sps * secs * 0.6, `speed: ${sps} steps/s gives ${step} steps in ${secs.toFixed(1)} s`);
+  }
+  check(errors.length === 0, `speed: no console errors${errors.length ? ': ' + errors[0] : ''}`);
+
+  // the overfitting lab: its switch leads to the same network with more data
+  await page.goto(`${base}#preset=overfit`);
+  await page.waitForSelector('.train-view');
+  await page.locator('.variants a', { hasText: '400' }).click();
+  await page.waitForFunction(() => location.hash.includes('preset=overfit-more'), null, { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('.train-view h1');
+  check(/more data/.test((await page.locator('.train-view h1').textContent()) ?? ''), 'overfit: the switch opens the 400-dot lab');
 
   // a link to a point in a pass opens there, with the backward order shown
   errors.length = 0;
