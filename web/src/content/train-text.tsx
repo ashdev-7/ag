@@ -22,6 +22,11 @@ export const TRAIN_TASK: Record<string, { headline: string; task: ReactNode; les
     task: <>Two arms wound around each other: much harder than the moons, so this network has 32 neurons per hidden layer.</>,
     lesson: <>For a while nothing improves, then the boundary suddenly starts tracing the arms. Hard patterns need bigger networks and patience.</>,
   },
+  'spirals-small': {
+    headline: 'Too small to learn: underfitting',
+    task: <>The spirals again, but the network has one hidden layer of only 4 neurons. However long it trains, it cannot draw the arms.</>,
+    lesson: <>Training loss stops near 0.6 and accuracy around 60%: not memorising, not learning, just out of room. Switch to 2 × 32 neurons to see the arms traced.</>,
+  },
   xor: {
     headline: 'Solve the XOR puzzle',
     task: <>Opposite corners share a colour. No single straight line can separate them; this puzzle stalled neural-network research in the 1970s.</>,

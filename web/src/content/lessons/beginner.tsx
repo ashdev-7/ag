@@ -200,7 +200,7 @@ export const BEGINNER: Lesson[] = [
     labs: [
       {
         preset: 'bowl', label: 'Step size in 2-D',
-        steps: [<>Press Race and watch <b>sgd</b> (orange): its steps bounce across the narrow direction because the learning rate is near the limit for that direction.</>, <>Set its lr to 0.11 and press Reset, then Race: it now overshoots more each step and diverges.</>],
+        steps: [<>Press Race and watch <b>sgd</b> (orange): its steps bounce across the narrow direction because the learning rate is near the limit for that direction.</>, <>Set its lr to 0.11 and press Reset, then Race: now each step overshoots further than the last, its loss climbs instead of falling, and the race marks it diverged.</>],
       },
       {
         preset: 'neuron', hash: 'pass=train', label: 'Training steps on one neuron',

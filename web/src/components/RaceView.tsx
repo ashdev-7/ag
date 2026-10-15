@@ -29,11 +29,16 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
   const [epoch, setEpoch] = useState(0);
   const [speed, setSpeed] = useState(preset.speed ?? 20);   // steps per second
   const optimsRef = useRef(optims);
+  // per race, cleared by Reset: each racer's first loss, and who has diverged
+  const start = useRef<number[]>([]);
+  const gone = useRef(new Set<number>());
   optimsRef.current = optims;
 
   useEffect(() => {
     let dead = false;
     const made: Session[] = [];
+    start.current = [];
+    gone.current = new Set();
     (async () => {
       for (const optim of optimsRef.current) {
         const r = await client.createSession(preset.spec, { ...preset.config, optim });
@@ -58,22 +63,36 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
   }, [client, preset, race, epoch, onBanner]);
 
   const run = () => {
+    // a racer that diverged stays stopped when the race resumes
+    const going = sessions.filter((_, i) => !gone.current.has(i));
+    if (!going.length) return;
     setRunning(true);
     let stopped = 0;
-    sessions.forEach((s, i) =>
+    sessions.forEach((s, i) => !gone.current.has(i) &&
       s.run({
         watch: { stats: [], tensors: [{ nodeId: race.x, which: 'value' }, { nodeId: race.y, which: 'value' }] },
         stepsPerSecond: speed,
         maxSteps: race.maxSteps,
         onFrame: (f) => {
           const x = f.tensors[0].data[0], y = f.tensors[1].data[0];
+          // diverged: the loss has grown a thousandfold past where it started.
+          // Waiting for the numbers to overflow could outlast the race, and
+          // the point is already made
+          const s0 = (start.current[i] ??= f.loss);
+          const diverged = f.loss > s0 + 1000 * Math.max(1, Math.abs(s0));
           setRacers((rs) => rs.map((r, k) => (k !== i ? r : {
             ...r, path: [...r.path, [x, y]], steps: [...r.steps, f.step], loss: [...r.loss, f.loss],
+            done: diverged ? 'diverged' : r.done,
           })));
+          if (diverged) {
+            gone.current.add(i);
+            s.pause();
+            if (++stopped === going.length) setRunning(false);
+          }
         },
         onStopped: (st) => {
           // the button goes back to "Race" once every racer has stopped
-          if (++stopped === sessions.length) setRunning(false);
+          if (++stopped === going.length) setRunning(false);
           setRacers((rs) => rs.map((r, k) => (k !== i ? r : { ...r, done: st.reason === 'fault' ? 'diverged' : 'finished' })));
           if (st.error && st.error.code !== 'NonFinite') onBanner({ kind: 'error', text: describe(st.error), error: st.error });
         },

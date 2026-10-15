@@ -91,7 +91,7 @@ export const ADVANCED: Lesson[] = [
     ],
     labs: [
       { preset: 'saddle', label: 'Escaping a saddle', steps: [<>Press Race. <b>sgd</b> stalls near the saddle at (0, 0) (the flat stretch of its loss curve); <b>rmsprop</b> and <b>adam</b> escape almost immediately.</>] },
-      { preset: 'moons', label: 'Adam against SGD on a network', steps: [<>Tick <i>compare two optimizers</i>, then Run: same starting weights, two optimizers.</>, <>Click a weight box and look at its first and second moment: Adam’s <code>m</code> and <code>v</code>.</>] },
+      { preset: 'moons', label: 'Adam against SGD on a network', steps: [<>Tick <i>compare two optimizers</i>, then Run: same starting weights, two optimizers.</>, <>In ⑥ <i>Inside one layer</i>, choose a layer: beside the weights and their corrections are Adam’s memories, <code>m</code> (average correction) and <code>v</code> (average squared correction).</>] },
     ],
   },
 
@@ -112,7 +112,7 @@ export const ADVANCED: Lesson[] = [
       {
         heading: 'Why sigmoid makes it worse',
         body: <>
-          <p>The sigmoid’s slope is at most 0.25 (at 0) and nearly 0 for large inputs. Six sigmoid layers multiply the gradient by at most <code>0.25⁶ ≈ 0.00024</code>, and usually much less. Look at the dashed slope line below for sigmoid, then tanh (at most 1) and ReLU (exactly 1 where active).</p>
+          <p>The sigmoid’s slope is at most 0.25 (at 0) and nearly 0 for large inputs. Through six sigmoid layers, the slopes alone multiply the gradient by at most <code>0.25⁶ ≈ 0.00024</code>; the weights in between win some of it back. In the lab below, the first layer ends up with 700 to 10,000 times less gradient than the output layer. Look at the dashed slope line below for sigmoid, then tanh (at most 1) and ReLU (exactly 1 where active).</p>
           <ActivationWidget initial="sigmoid" />
         </>,
       },
@@ -134,7 +134,7 @@ export const ADVANCED: Lesson[] = [
     ],
     labs: [{
       preset: 'vanishing', label: 'Six sigmoid layers',
-      steps: [<>Press Run, then read <i>Gradient norm per layer</i>: about four orders of magnitude between the first layer (dark) and the output (orange).</>, <>Compare with the <i>Moons</i> lab, the same data with two tanh layers: there the layers’ gradient norms stay within about a factor of 4 of each other, and the loss falls to near 0.</>],
+      steps: [<>Press Run, then read ④ <i>How hard each layer is corrected</i>: the first layer (dark) gets thousands of times less than the output (orange).</>, <>Compare with the <i>Moons</i> lab, the same data with two tanh layers: there the layers stay within about 20× of each other, and the loss falls to near 0.</>],
     }],
   },
 
@@ -169,13 +169,13 @@ export const ADVANCED: Lesson[] = [
       },
     ],
     faq: [
-      { q: 'Is a few dead neurons a problem?', a: <>Not necessarily: a network has many, and some ReLUs being off for some inputs is how ReLU networks work (46% zeros is normal on Circles). It is a problem when most units are dead for all inputs.</> },
+      { q: 'Is a few dead neurons a problem?', a: <>Not necessarily: a network has many, and some ReLUs being off for some inputs is how ReLU networks work (on Circles, about half of each hidden layer’s outputs are zero). It is a problem when most units are dead for all inputs.</> },
       { q: 'Can a dead neuron come back?', a: <>Only if the layers before it change enough to make its input positive for some example. If they are dead too, nothing changes, as in the Dead ReLUs example.</> },
       { q: 'Why are the biases −1.5 in that example?', a: <>To make the failure happen on purpose: with small weights, every input to every hidden ReLU is negative from the very first step.</> },
     ],
     labs: [
       { preset: 'dead-relu', label: 'A network that cannot learn', steps: [<>Press Run: both hidden layers are 100% zero, every weight gradient is 0, and the loss stays at 0.69.</>] },
-      { preset: 'circles', label: 'The same task, healthy start', steps: [<>Press Run: the same data and network with He initialisation and zero biases learns in a few hundred steps, with about half of each layer’s outputs zero, as normal for ReLU.</>] },
+      { preset: 'circles', label: 'The same task, healthy start', steps: [<>Press Run: the same data and network with He initialisation and zero biases reaches 97% test accuracy within about 50 steps, with about half of each layer’s outputs zero, as normal for ReLU.</>] },
     ],
   },
 
@@ -194,7 +194,7 @@ export const ADVANCED: Lesson[] = [
         heading: 'Width and depth',
         body: <>
           <p><b>Width</b> (neurons per layer) is how many pieces a layer can cut the input into. <b>Depth</b> (number of layers) is how many times pieces can be combined. Depth is often more efficient: some patterns need exponentially many neurons in one wide layer but far fewer spread over several layers, because each layer reuses the features of the one before.</p>
-          <p>The examples here show the range: XOR needs 8 hidden units; Moons, two layers of 8; Spirals, whose arms wind almost twice around the centre, two layers of 32.</p>
+          <p>The examples here: XOR uses 8 hidden neurons, though 2 would do (the non-linearity lesson solves it by hand); Moons uses two layers of 8. Spirals, whose arms wind almost twice around the centre, uses two layers of 32; two layers of 8 also get there, about four times slower; one layer of 4 never does.</p>
         </>,
       },
       {
@@ -207,7 +207,10 @@ export const ADVANCED: Lesson[] = [
       { q: 'Is bigger always better?', a: <>With enough data and compute, larger models have tended to do better, which is the story of recent language models. With little data, a smaller model or other forms of regularisation are safer.</> },
     ],
     labs: [{
-      preset: 'spirals', label: 'A harder pattern',
+      preset: 'spirals-small', label: 'Too few neurons: underfitting',
+      steps: [<>Press Run. The loss stops near 0.6 and accuracy around 60%, and stays there however long it trains: four neurons can draw only four lines, and the arms need far more.</>, <>Note that training and test loss stay together: this is not overfitting. The network is not memorising; it has run out of room.</>],
+    }, {
+      preset: 'spirals', label: 'Enough neurons',
       steps: [<>Press Run and watch the boundary trace the arms turn by turn; compare the loss curve’s flat start with Moons.</>],
     }],
   },

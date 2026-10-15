@@ -221,6 +221,13 @@ const overfit = trainPreset('overfit', 'Overfitting',
 const overfitCure = trainPreset('overfit-more', 'Overfitting: more data',
   'The same network with 8× the data.',
   'moons', overfitNet, { kind: 'adam', lr: 0.002 }, { ...overfitOpts, n: 800 });
+// underfitting: the spirals with one hidden layer of 4. Measured
+// (scripts/behaviour.ts): stuck near loss 0.6 and 66% accuracy however long
+// it trains, where 2 x 32 reaches 98%
+const spiralsSmall = trainPreset('spirals-small', 'Spirals: too small',
+  'Four neurons cannot draw the arms.',
+  'spirals', classifier([4], 'relu'), { kind: 'adam', lr: 0.01 }, { batchSize: 32, n: 600, noise: 0.05, speed: 100 });
+spirals.variants = spiralsSmall.variants = { label: 'Hidden neurons', options: [{ id: 'spirals-small', label: '4' }, { id: 'spirals', label: '2 × 32' }] };
 overfit.variants = overfitCure.variants = { label: 'Training dots', options: [{ id: 'overfit', label: '50' }, { id: 'overfit-more', label: '400' }] };
 
 // ── optimizer race ──────────────────────────────────────────────────────────
@@ -295,7 +302,7 @@ const bowl = racePreset('bowl', 'Narrow bowl',
 
 export const PRESETS: Preset[] = [
   expression, stopGrad, neuron, broadcast, mlpStep,
-  moons, circles, spirals, xor, vanishing, deadRelu, overfit, overfitCure,
+  moons, circles, spirals, spiralsSmall, xor, vanishing, deadRelu, overfit, overfitCure,
   rosenbrock, saddle, bowl,
 ];
 

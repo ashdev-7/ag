@@ -194,6 +194,18 @@ try {
   }
   check(errors.length === 0, `speed: no console errors${errors.length ? ': ' + errors[0] : ''}`);
 
+  // the descent lesson: sgd at lr 0.11 on the bowl is marked diverged
+  errors.length = 0;
+  await page.goto(`${base}#preset=bowl`);
+  await page.waitForSelector('.race-view');
+  await page.locator('.optim').first().getByLabel('lr').fill('0.11');
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await page.waitForSelector('.race-view');
+  await page.getByRole('button', { name: 'Race' }).click();
+  await page.waitForFunction(() => document.querySelector('.legend')?.textContent?.includes('sgd (diverged)'), null, { timeout: 15000 }).catch(() => {});
+  check((await page.locator('.legend').textContent())?.includes('sgd (diverged)') ?? false, 'race: sgd at lr 0.11 on the bowl is marked diverged');
+  check(errors.length === 0, `race: no console errors${errors.length ? ': ' + errors[0] : ''}`);
+
   // the overfitting lab: its switch leads to the same network with more data
   await page.goto(`${base}#preset=overfit`);
   await page.waitForSelector('.train-view');

@@ -66,8 +66,25 @@ export const INTERMEDIATE: Lesson[] = [
       {
         heading: 'The idea: bend after every layer',
         body: <>
-          <p>Putting a non-linear <b>activation function</b> after each layer stops the collapse. Each hidden neuron now carves the input space with one soft line, and the next layer combines those pieces into curves and closed regions. With one hidden layer, XOR becomes easy. The catch, finding the weights for hidden layers, was solved by backpropagation.</p>
+          <p>Putting a non-linear <b>activation function</b> after each layer stops the collapse. Each hidden neuron now carves the input space with one line, and the next layer combines those pieces into curves and closed regions.</p>
           <ActivationWidget />
+        </>,
+      },
+      {
+        heading: 'XOR solved by hand, with two neurons',
+        body: <>
+          <p>Take the four corners <code>(±1, ±1)</code>: same signs are one class, opposite signs the other. Two ReLU neurons and one output solve it:</p>
+          <p className="formula">h₁ = ReLU(x₁ + x₂)     h₂ = ReLU(−x₁ − x₂)     score = h₁ + h₂ − 1</p>
+          <table className="worked">
+            <thead><tr><th>point</th><th>x₁ + x₂</th><th>h₁</th><th>h₂</th><th>score</th><th>class</th></tr></thead>
+            <tbody>
+              <tr><td>(1, 1)</td><td>2</td><td>2</td><td>0</td><td>1</td><td>same signs</td></tr>
+              <tr><td>(−1, −1)</td><td>−2</td><td>0</td><td>2</td><td>1</td><td>same signs</td></tr>
+              <tr><td>(1, −1)</td><td>0</td><td>0</td><td>0</td><td>−1</td><td>opposite</td></tr>
+              <tr><td>(−1, 1)</td><td>0</td><td>0</td><td>0</td><td>−1</td><td>opposite</td></tr>
+            </tbody>
+          </table>
+          <p>Positive score: same signs; negative: opposite. Each neuron draws one line; the bend makes <code>h₁ + h₂</code> equal to <code>|x₁ + x₂|</code>, which no weighted sum can compute. Without the ReLUs, the score would be <code>(x₁ + x₂) − (x₁ + x₂) − 1 = −1</code> for every point. A network finds weights like these by itself, through backpropagation.</p>
         </>,
       },
       {
@@ -86,7 +103,7 @@ export const INTERMEDIATE: Lesson[] = [
     ],
     labs: [{
       preset: 'xor', label: 'XOR with one hidden layer',
-      steps: [<>Press Run. The decision boundary starts as nearly one straight line and bends into a shape that puts opposite corners together, something no single line can do.</>, <>Watch the loss wobble before it settles: this run uses momentum.</>],
+      steps: [<>Press Run. Within about 100 steps the boundary splits the square into opposite corners, something no single line can do.</>, <>Watch the loss wobble up and down before it falls: this run uses momentum, which overshoots (an advanced lesson).</>],
     }],
   },
 
@@ -122,7 +139,16 @@ export const INTERMEDIATE: Lesson[] = [
           <p>Through a softmax, squared error has a flaw: when the network is <b>confidently wrong</b> (right class near probability 0), the softmax is flat there and squared error’s gradient becomes tiny. The model learns slowest exactly when it is most wrong.</p>
           <p>Cross-entropy cancels that flatness. Its gradient with respect to the scores is simply</p>
           <p className="formula">∂loss/∂z_k = p_k − t_k</p>
-          <p>predicted probability minus target: large when badly wrong, zero when right. Simple, and strong where it is needed.</p>
+          <p>predicted probability minus target: large when badly wrong, zero when right. With two classes, the push on the right class’s score:</p>
+          <table className="worked">
+            <thead><tr><th>probability of the right class</th><th>squared error</th><th>cross-entropy</th></tr></thead>
+            <tbody>
+              <tr><td>0.5 (unsure)</td><td>0.50</td><td>0.50</td></tr>
+              <tr><td>0.1 (wrong)</td><td>0.32</td><td>0.90</td></tr>
+              <tr><td>0.01 (confidently wrong)</td><td>0.04</td><td>0.99</td></tr>
+            </tbody>
+          </table>
+          <p>When the network is unsure they push equally; when it is confidently wrong, cross-entropy pushes 25 times harder, exactly where it is needed.</p>
         </>,
       },
       {
