@@ -203,6 +203,7 @@ export const OP_SYMBOL: Partial<Record<OpName, string>> = {
 // parsing never throws
 
 export interface UrlState {
+  lesson?: string;
   preset?: string;
   seed?: number;
   pass?: string;
@@ -235,6 +236,7 @@ export function fromUrlHash(hash: string): UrlState {
     const v = Number(p.get(k));
     return p.has(k) && Number.isFinite(v) ? v : undefined;
   };
+  out.lesson = word('lesson');
   out.preset = word('preset');
   out.seed = num('seed');
   out.pass = word('pass');

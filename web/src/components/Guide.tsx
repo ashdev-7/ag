@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Guide } from '../content/help.tsx';
+import { lessonForPreset } from '../content/lessons/index.ts';
 
 const KEY = 'ag.guide.closed';
 
@@ -16,7 +17,8 @@ function readClosed(): boolean {
   }
 }
 
-export function GuideCard(props: { title: string; guide?: Guide; children?: ReactNode }) {
+export function GuideCard(props: { title: string; presetId: string; guide?: Guide; children?: ReactNode }) {
+  const lesson = lessonForPreset(props.presetId);
   const [open, setOpen] = useState(() => !readClosed());
   const toggle = (next: boolean) => {
     setOpen(next);
@@ -28,6 +30,9 @@ export function GuideCard(props: { title: string; guide?: Guide; children?: Reac
     <details className="guide" open={open} onToggle={(e) => toggle((e.currentTarget as HTMLDetailsElement).open)}>
       <summary>About this example: <b>{props.title}</b></summary>
       <div className="guide-body">
+        {lesson && (
+          <p className="guide-lesson">New to this? Read the lesson first: <a href={`#lesson=${lesson.id}`}>{lesson.title}</a>.</p>
+        )}
         {props.guide && <p>{props.guide.idea}</p>}
         {props.children}
         {props.guide && props.guide.watch.length > 0 && (

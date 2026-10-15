@@ -12,6 +12,8 @@ import type { UrlState } from './views/graph.ts';
 import { describe, ErrorBanner } from './components/ErrorBanner.tsx';
 import type { Banner } from './components/ErrorBanner.tsx';
 import { Landing } from './components/Landing.tsx';
+import { LessonView } from './components/LessonView.tsx';
+import { findLesson } from './content/lessons/index.ts';
 import { RaceView } from './components/RaceView.tsx';
 import { Recorded } from './components/Recorded.tsx';
 import { StepView } from './components/StepView.tsx';
@@ -58,8 +60,11 @@ export function App() {
     window.location.hash = toUrlHash({ preset: id });
   };
 
+  const lesson = findLesson(url.lesson);
   let body;
-  if (!preset) body = <Landing />;
+  // lessons are text and small figures: they need no engine
+  if (lesson) body = <LessonView lesson={lesson} />;
+  else if (!preset) body = <Landing />;
   else if (status.state === 'unavailable') body = <Recorded preset={preset} />;
   else if (status.state !== 'ready') body = <div className="loading">Starting the engine…</div>;
   else {
@@ -74,6 +79,7 @@ export function App() {
     <div className="app">
       <nav className="top">
         <a className="brand" href="#">ag<span>·glass</span></a>
+        {lesson && <a className="nav-link" href="#">All lessons</a>}
         {preset && (
           <>
             <select value={preset.id} onChange={(e) => pick(e.target.value)} aria-label="Preset">

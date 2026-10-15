@@ -102,7 +102,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
 
   return (
     <div className="race-view">
-      <GuideCard title={preset.title} guide={RACE_GUIDES[preset.id]}>
+      <GuideCard title={preset.title} presetId={preset.id} guide={RACE_GUIDES[preset.id]}>
         {RACE_GUIDES[preset.id] && <p>The loss: {RACE_GUIDES[preset.id].formula}</p>}
       </GuideCard>
       <div className="toolbar">

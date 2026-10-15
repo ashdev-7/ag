@@ -264,7 +264,7 @@ export function StepView(props: {
 
   return (
     <div className="step-view">
-      <GuideCard title={preset.title} guide={STEP_GUIDES[preset.id]} />
+      <GuideCard title={preset.title} presetId={preset.id} guide={STEP_GUIDES[preset.id]} />
       <div className="toolbar">
         <div className="segmented" role="tablist" aria-label="Pass">
           {PASSES.map((p) => (

@@ -5,16 +5,7 @@
 import type { ReactNode } from 'react';
 import type { OptimConfig, PassKind } from '../engine/protocol.ts';
 
-// ── the basics, for the landing page ────────────────────────────────────────
-
-export const BASICS: { term: string; text: ReactNode }[] = [
-  { term: 'Graph', text: <>A network is a chain of small operations (multiply, add, tanh…). Each box is one operation; arrows carry numbers from one to the next.</> },
-  { term: 'Forward pass', text: <>Numbers flow left to right: inputs in, every box computes its output, and the last box gives the <b>loss</b>.</> },
-  { term: 'Loss', text: <>One number saying how wrong the network is. Training means making it smaller.</> },
-  { term: 'Gradient', text: <>For every number in the graph, <code>∂L/∂x</code>: how much the loss would change if that number were nudged up a little. Positive means “increasing x makes the loss worse”.</> },
-  { term: 'Backward pass', text: <>Gradients flow right to left, from the loss back to every input, one arrow at a time, using the chain rule. This is what <code>loss.backward()</code> does in PyTorch.</> },
-  { term: 'Optimizer', text: <>Uses the gradients to move each parameter a small step downhill, e.g. <code>w ← w − lr · ∂L/∂w</code>. Repeat many times and the network learns.</> },
-];
+// ── the three kinds of lab ─────────────────────────────────────────────────
 
 export const MODE_INTRO: Record<'step' | 'train' | 'race', ReactNode> = {
   step: <>Slow motion. Run one forward and one backward pass one micro-step at a time, and read every number and every gradient as it is computed. Start here.</>,

@@ -268,7 +268,7 @@ export function TrainView(props: {
 
   return (
     <div className="train-view">
-      <GuideCard title={preset.title} guide={TRAIN_GUIDES[preset.id]}>
+      <GuideCard title={preset.title} presetId={preset.id} guide={TRAIN_GUIDES[preset.id]}>
         <p>{TRAIN_SETUP}</p>
       </GuideCard>
       <div className="toolbar">

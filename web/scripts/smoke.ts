@@ -49,6 +49,23 @@ try {
   check((await page.locator('.card').count()) === PRESETS.length, 'landing lists every preset');
   await page.screenshot({ path: join(shots, '00-landing.png') });
 
+  // every lesson opens, draws its figures, and links to its labs
+  // (the lesson files are .tsx, which node cannot load here, so the list comes from the page)
+  const lessonIds = (await page.locator('.lesson-list a').evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? '')))
+    .map((h) => h.replace('#lesson=', ''));
+  check(lessonIds.length >= 17, `landing lists ${lessonIds.length} lessons`);
+  for (const id of lessonIds) {
+    errors.length = 0;
+    await page.goto(`${base}#lesson=${id}`);
+    await page.waitForSelector('.lesson h1');
+    const widgets = await page.locator('.widget canvas').count();
+    const labs = await page.locator('.labs a.button').count();
+    check(labs >= 1 && errors.length === 0, `lesson ${id}: ${labs} lab links, ${widgets} figures, ${errors.length ? errors[0] : 'no console errors'}`);
+  }
+  await page.goto(`${base}#lesson=derivatives`);
+  await page.waitForSelector('.widget canvas');
+  await page.screenshot({ path: join(shots, '00-lesson.png'), fullPage: true });
+
   for (const p of PRESETS) {
     errors.length = 0;
     await page.goto(`${base}#preset=${p.id}`);
