@@ -62,7 +62,8 @@ otherwise they load Git's older `libstdc++-6.dll` and crash.
 
 ## Deploy
 
-Vercel: import the repository; `vercel.json` has the settings. Vercel cannot
+Vercel: import the repository with Root Directory `web`; `web/vercel.json`
+has the rest. Vercel cannot
 compile the engine, so the built engine (`web/public/engine/ag.{mjs,wasm}`) is
 committed. After changing anything in `engine/`, run `make -C engine wasm`
 and commit the two files with the change.
