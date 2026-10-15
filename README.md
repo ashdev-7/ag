@@ -46,6 +46,7 @@ cd web
 npm install
 npm run dev               # http://localhost:5173
 npm test                  # spec validation, URL parsing, engine client recovery
+npm run verify            # every step the stepper shows against an independent double-precision reference
 npm run build             # dist/
 node scripts/smoke.ts shots firefox  # every preset in a headless browser: chromium (default), firefox or webkit
                           # (after build; needs `npx playwright install chromium firefox webkit`)

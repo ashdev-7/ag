@@ -48,6 +48,8 @@ jobs:
           node-version: '22.18'
       - run: npm ci
       - run: npm test
+      - name: every stepper step against an independent reference
+        run: npm run verify
       - run: npm run build
       - name: browser smoke test (Chromium, Firefox, WebKit)
         run: |
