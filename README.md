@@ -62,9 +62,14 @@ otherwise they load Git's older `libstdc++-6.dll` and crash.
 
 ## Deploy
 
-`.github/workflows/pages.yml` builds everything and publishes `web/dist` to
-GitHub Pages. Enable Pages with source "GitHub Actions" in the repository
-settings, then run the workflow from the Actions tab.
+Vercel: import the repository; `vercel.json` has the settings. Vercel cannot
+compile the engine, so the built engine (`web/public/engine/ag.{mjs,wasm}`) is
+committed. After changing anything in `engine/`, run `make -C engine wasm`
+and commit the two files with the change.
+
+GitHub Pages: `.github/workflows/pages.yml` builds everything from source and
+publishes `web/dist`. Enable Pages with source "GitHub Actions" in the
+repository settings, then run the workflow from the Actions tab.
 
 ## How it is built
 

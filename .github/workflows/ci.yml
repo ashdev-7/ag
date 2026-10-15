@@ -9,6 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: the committed engine build (what Vercel serves) is not older than the engine
+        run: |
+          src=$(git log -1 --format=%ct -- engine/src engine/include)
+          built=$(git log -1 --format=%ct -- web/public/engine)
+          if [ "$src" -gt "$built" ]; then
+            echo "engine/ changed after web/public/engine was committed: run make -C engine wasm and commit it"
+            exit 1
+          fi
       - name: native tests
         run: make -C engine test
       - uses: actions/setup-python@v5
@@ -22,7 +32,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
-      - name: wasm build agrees with native
+      - name: the committed wasm build agrees with native
+        run: node engine/tests/wasm_moons.mjs
+      - name: a fresh wasm build agrees with native
         run: |
           make -C engine wasm
           node engine/tests/wasm_moons.mjs
