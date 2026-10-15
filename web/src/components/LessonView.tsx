@@ -1,19 +1,15 @@
 // One lesson: the question, the story from the problem to where the idea is
 // used, the questions a reader is about to ask, and labs to see it happen.
 
-import { useEffect, useState } from 'react';
-import { labHref, LESSONS, LEVELS, markDone, readDone } from '../content/lessons/index.ts';
+import { useEffect } from 'react';
+import { labHref, LESSONS, LEVELS } from '../content/lessons/index.ts';
 import type { Lesson } from '../content/lessons/index.ts';
 
 export function LessonView({ lesson }: { lesson: Lesson }) {
   const i = LESSONS.indexOf(lesson);
   const prev = LESSONS[i - 1], next = LESSONS[i + 1];
   const level = LEVELS.find((l) => l.level === lesson.level)!;
-  const [done, setDone] = useState(() => readDone().has(lesson.id));
-  useEffect(() => {
-    setDone(readDone().has(lesson.id));
-    window.scrollTo(0, 0);
-  }, [lesson]);
+  useEffect(() => window.scrollTo(0, 0), [lesson]);
 
   return (
     <article className="lesson">
@@ -52,11 +48,6 @@ export function LessonView({ lesson }: { lesson: Lesson }) {
           </div>
         ))}
       </section>
-
-      <label className="done-toggle">
-        <input type="checkbox" checked={done} onChange={(e) => { markDone(lesson.id, e.target.checked); setDone(e.target.checked); }} />
-        I’ve read this lesson
-      </label>
 
       <nav className="lesson-nav">
         {prev ? <a href={`#lesson=${prev.id}`}>← {prev.title}</a> : <span />}

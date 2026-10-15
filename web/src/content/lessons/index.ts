@@ -26,23 +26,3 @@ export function lessonForPreset(presetId: string): Lesson | undefined {
 export function labHref(preset: string, hash?: string): string {
   return `#preset=${preset}${hash ? '&' + hash : ''}`;
 }
-
-// lessons marked as read: remembered in this browser only, as a convenience
-const DONE_KEY = 'ag.lessons.done';
-
-export function readDone(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(DONE_KEY) ?? '[]') as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-export function markDone(id: string, done: boolean): Set<string> {
-  const s = readDone();
-  if (done) s.add(id); else s.delete(id);
-  try {
-    localStorage.setItem(DONE_KEY, JSON.stringify([...s]));
-  } catch { /* not remembered */ }
-  return s;
-}

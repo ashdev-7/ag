@@ -559,7 +559,7 @@ function ModesPanel({ modes, onClose }: { modes: ModeResult | 'running'; onClose
       <p><b>Reverse mode:</b> 1 pass gave all {modes.rows.length} derivatives of the loss.</p>
       <p><b>Forward mode:</b> {modes.passes} passes{modes.truncated ? ' (stopped at 200)' : ''}, one per input number.</p>
       <p className={modes.worst < 1e-4 ? 'ok' : 'bad'}>
-        {modes.worst < 1e-4 ? '✓ They agree.' : '✗ They differ.'} Largest relative difference: {modes.worst.toExponential(1)}
+        <i className="status-dot" aria-hidden />{modes.worst < 1e-4 ? 'They agree.' : 'They differ.'} Largest relative difference: {modes.worst.toExponential(1)}
       </p>
       <table>
         <thead><tr><th>input</th><th>reverse</th><th>forward</th></tr></thead>

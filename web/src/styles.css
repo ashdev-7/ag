@@ -36,6 +36,8 @@ h1, h2, h3, h4 { letter-spacing: -0.015em; }
 .muted { color: var(--muted); font-weight: normal; }
 .ok { color: var(--ok); }
 .bad { color: var(--bad); }
+/* a status mark: green when it holds (.ok), red when not (.bad); never a tick */
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-right: 7px; vertical-align: 1px; }
 
 /* ── controls ───────────────────────────────────────────────────────────── */
 button {
@@ -307,7 +309,6 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .lesson-num { flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
 .level-intermediate .lesson-num { background: #e6eef7; color: var(--forward); }
 .level-advanced .lesson-num { background: #fbeadf; color: var(--backward); }
-.read { color: var(--ok); }
 .labs-title { margin: 64px 0 4px; font-size: 26px; letter-spacing: -0.025em; }
 .labs-lede { color: var(--ink-2); margin: 0 0 8px; }
 .preset-section { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; padding: 22px 0; border-top: 1px solid var(--line); }
@@ -337,9 +338,11 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .lesson-question { font-size: 18px; border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; color: var(--ink); }
 .formula { font-family: var(--mono); font-size: 14px; background: var(--accent-soft); padding: 10px 14px; border-radius: 10px; overflow-x: auto; white-space: pre-wrap; }
 .faq-item p { margin-top: 0; }
+.worked { border-collapse: collapse; font-size: 14px; margin: 10px 0 14px; font-variant-numeric: tabular-nums; }
+.worked th, .worked td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); text-align: left; }
+.worked th { font-weight: 600; color: var(--ink-2); font-size: 13px; }
 .labs .lab { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--update); border-radius: 12px; padding: 8px 18px 14px; margin: 12px 0; }
 .labs ol { margin: 4px 0 10px; }
-.done-toggle { display: flex; align-items: center; gap: 8px; margin: 28px 0 8px; color: var(--muted); font-size: 14px; }
 .lesson-nav { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; margin: 8px 0 48px; }
 .widget { margin: 18px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
 .widget figcaption { font-size: 14px; color: var(--ink-2); margin-top: 8px; line-height: 1.55; }
