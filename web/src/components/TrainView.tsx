@@ -14,6 +14,8 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
+import { fetchNeurons, NeuronDiagram } from './NeuronDiagram.tsx';
+import type { NeuronState } from './NeuronDiagram.tsx';
 import { GuideCard, Help } from './Guide.tsx';
 import { OPTIM_HELP, PANEL_HELP, TRAIN_GUIDES, TRAIN_SETUP } from '../content/help.tsx';
 import { accuracy, activationStory, boundaryStory, gradStory, lossStory, trend } from '../views/narrate.ts';
@@ -107,6 +109,8 @@ export function TrainView(props: {
   const [selected, setSelected] = useState<string | undefined>();
   const [inspect, setInspect] = useState<{ value?: Float32Array; grad?: Float32Array; m?: Float32Array; v?: Float32Array; shape: number[] } | null>(null);
   const [epoch, setEpoch] = useState(0);   // bumps on reset, so sessions are rebuilt
+  const [netView, setNetView] = useState<'neurons' | 'ops'>('neurons');
+  const [neurons, setNeurons] = useState<NeuronState | null>(null);
   const [film, setFilm] = useState<{ step: number; grid: { res: number; data: Float32Array } }[]>([]);
   const comparing = optims.length > 1;
 
@@ -267,6 +271,27 @@ export function TrainView(props: {
     return () => { dead = true; };
   }, [sessions, selected, lastStep, running, preset]);
 
+  // the neuron diagram: re-read twice a second while training, and after a
+  // Step or Reset. One read at a time; a slow engine just updates less often
+  useEffect(() => {
+    const s = sessions[0];
+    if (!s || netView !== 'neurons') return;
+    let dead = false, busy = false;
+    const pull = async () => {
+      if (busy) return;
+      busy = true;
+      const st = await fetchNeurons(s, preset, DOMAIN);
+      busy = false;
+      if (!dead && st) setNeurons(st);
+    };
+    void pull();
+    const timer = running ? setInterval(pull, 500) : undefined;
+    return () => {
+      dead = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [sessions, netView, running, preset, running ? -1 : lastStep]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const highlight: Highlight = useMemo(() => ({ valueDone: new Set(allIds), gradDone: new Set(allIds), direction: 'idle' }), [allIds]);
   const shapes = useMemo(() => Object.fromEntries((sessions[0]?.info.nodes ?? []).map((n) => [n.id, n.shape])), [sessions]);
   const labels = useMemo(() => (data ? Array.from({ length: data.n }, (_, i) => (data.y[i * data.yDim + 1] > 0.5 ? 1 : 0)) : []), [data]);
@@ -316,12 +341,22 @@ export function TrainView(props: {
 
       <div className="train-grid">
         <section className="panel graph-panel">
-          <h4>Network</h4>
-          <Help>{PANEL_HELP.network}</Help>
-          <div className="graph-wrap small">
-            <GraphCanvas spec={preset.spec} shapes={shapes} highlight={highlight} values={graphStats.values} grads={graphStats.grads}
-              selected={selected} onSelect={setSelected} edgeWeights faultNode={a.fault?.nodeId} />
-          </div>
+          <h4>
+            Network{' '}
+            <span className="segmented small-seg" aria-label="Network view">
+              <button className={netView === 'neurons' ? 'on' : ''} aria-pressed={netView === 'neurons'} onClick={() => setNetView('neurons')}>Neurons</button>
+              <button className={netView === 'ops' ? 'on' : ''} aria-pressed={netView === 'ops'} onClick={() => setNetView('ops')}>Operations</button>
+            </span>
+          </h4>
+          <Help>{netView === 'neurons' ? PANEL_HELP.neurons : PANEL_HELP.network}</Help>
+          {netView === 'neurons' ? (
+            <NeuronDiagram preset={preset} state={neurons} />
+          ) : (
+            <div className="graph-wrap small">
+              <GraphCanvas spec={preset.spec} shapes={shapes} highlight={highlight} values={graphStats.values} grads={graphStats.grads}
+                selected={selected} onSelect={setSelected} edgeWeights faultNode={a.fault?.nodeId} />
+            </div>
+          )}
         </section>
 
         {grid && (

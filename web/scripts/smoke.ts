@@ -124,6 +124,16 @@ try {
       const text = await page.locator('.toolbar .counter').last().textContent();
       const step = Number(/step (\d+)/.exec(text ?? '')?.[1] ?? 0);
       check(step > 100, `${p.id}: trained ${step} steps in 3 s`);
+      // the neuron diagram: hovering the first hidden neuron explains it
+      const net = await page.locator('.neurons canvas').boundingBox();
+      let explained = false;
+      for (let y = 0.05; y < 0.95 && !explained && net; y += 0.008) {
+        await page.mouse.move(net.x + 24 + (net.width - 122) / (p.layers.length) + 4, net.y + net.height * y);
+        explained = /neuron \d+: it adds up/.test((await page.locator('.neurons .story').textContent()) ?? '');
+      }
+      check(explained, `${p.id}: hovering a neuron explains it`);
+      await page.getByRole('button', { name: 'Operations' }).click();
+      await page.waitForSelector('.react-flow__node');
       await page.locator('.react-flow__node', { hasText: 'W1' }).first().click();
       await sleep(500);
       await page.screenshot({ path: join(shots, `${p.id}.png`), fullPage: true });

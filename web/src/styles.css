@@ -242,3 +242,8 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .layer-bar { display: grid; grid-template-columns: 64px 1fr 70px; align-items: center; gap: 8px; font-size: 12px; }
 .bar-track { background: #f0eef4; border-radius: 3px; height: 10px; overflow: hidden; }
 .bar { display: block; height: 100%; border-radius: 3px; transition: width 0.2s; }
+.small-seg { margin-left: 8px; vertical-align: middle; font-weight: normal; }
+.small-seg button { padding: 2px 9px; font-size: 12px; }
+.neurons canvas { cursor: crosshair; }
+.neuron-hover { display: flex; gap: 10px; align-items: center; min-height: 40px; }
+.neuron-preview { flex: none; width: 84px !important; border: 1px solid #ccc; }
