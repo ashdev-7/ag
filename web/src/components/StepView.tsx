@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import type { Cursor, EngineError, OptimConfig, PassKind, ScalarView, Stats, Step, TangentSeed } from '../engine/protocol.ts';
-import { GRAPH_LEGEND, MODES_HELP, OPTIM_HELP, STEP_GUIDES } from '../content/help.tsx';
+import { GRAPH_KEY, MODES_HELP, OPTIM_HELP, STEP_GUIDES } from '../content/help.tsx';
 import { MODE_LONG, MODE_SHORT, STEP_SCREEN, ZOOM_SHORT } from '../content/step-text.tsx';
 import type { Preset } from '../graph/presets.ts';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
@@ -18,12 +18,7 @@ import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
 
-const PASSES: { pass: PassKind; label: string; hint: string }[] = [
-  { pass: 'forward', label: 'Forward', hint: 'values only' },
-  { pass: 'reverse', label: 'Backward', hint: 'forward, then gradients from the loss back' },
-  { pass: 'train', label: 'Train step', hint: 'backward, then every parameter updated' },
-  { pass: 'forwardMode', label: 'Forward mode', hint: 'derivatives carried forward along one direction' },
-];
+const PASSES: PassKind[] = ['forward', 'reverse', 'train', 'forwardMode'];
 
 const leaves = (spec: GraphSpec) => spec.nodes.filter((n) => n.op === 'param' || (n.op === 'input' && n.requiresGrad));
 
@@ -44,7 +39,7 @@ export function StepView(props: {
   const [tensor, setTensor] = useState<Session | null>(null);
   const [scalar, setScalar] = useState<{ session: Session; view: ScalarView } | null>(null);
   const [zoom, setZoom] = useState<'tensor' | 'scalar'>(props.url.zoom ?? 'tensor');
-  const [pass, setPass] = useState<PassKind>((PASSES.find((p) => p.pass === props.url.pass)?.pass) ?? 'reverse');
+  const [pass, setPass] = useState<PassKind>(PASSES.find((p) => p === props.url.pass) ?? 'reverse');
   const [cursor, setCursor] = useState<Cursor>({ index: 0, length: 0 });
   const [values, setValues] = useState<Record<string, Stats>>({});
   const [grads, setGrads] = useState<Record<string, Stats>>({});
@@ -261,26 +256,42 @@ export function StepView(props: {
 
   const step = highlight.step;
   const selNode = selected ? byId.get(selected) : undefined;
+  const guide = STEP_GUIDES[preset.id];
 
   return (
     <div className="step-view">
-      <section className="intro">
-        <h2>{preset.title}</h2>
-        <p>{STEP_SCREEN}</p>
-        {STEP_GUIDES[preset.id] && <p className="intro-lesson">{STEP_GUIDES[preset.id].idea}</p>}
-        {STEP_GUIDES[preset.id] && <ol className="do-this">{STEP_GUIDES[preset.id].watch.map((w, i) => <li key={i}>{w}</li>)}</ol>}
-      </section>
-      <div className="toolbar">
-        <div className="segmented" role="tablist" aria-label="Pass">
-          {PASSES.map((p) => (
-            <button key={p.pass} className={pass === p.pass ? 'on' : ''} aria-pressed={pass === p.pass} title={p.hint} onClick={() => setPass(p.pass)}
-              disabled={active.info.schedules[p.pass].length === 0}>{p.label}</button>
-          ))}
+      <header className="lab-head">
+        <div>
+          <span className="eyebrow">Step through</span>
+          <h1>{preset.title}</h1>
+          {guide && <p className="lede">{guide.idea}</p>}
+          <p className="hint">{STEP_SCREEN}</p>
         </div>
+        {guide && (
+          <div className="try">
+            <span className="eyebrow">Try this</span>
+            <ol>{guide.watch.map((w, i) => <li key={i}>{w}</li>)}</ol>
+          </div>
+        )}
+      </header>
+
+      <div className="modes-pick" role="group" aria-label="Pass">
+        {PASSES.map((p) => (
+          <button key={p} className={`mode-card${pass === p ? ' on' : ''}`} aria-pressed={pass === p} aria-label={MODE_SHORT[p].name}
+            onClick={() => setPass(p)} disabled={active.info.schedules[p].length === 0}>
+            <b>{MODE_SHORT[p].name}</b>
+            <span>{MODE_SHORT[p].line}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mode-long"><b>{MODE_SHORT[pass].name}:</b> {MODE_LONG(preset.config.optim.lr)[pass]}</p>
+
+      <div className="step-bar toolbar">
         <div className="segmented" aria-label="Zoom">
-          <button className={zoom === 'tensor' ? 'on' : ''} aria-pressed={zoom === 'tensor'} onClick={() => setZoom('tensor')}>Tensors</button>
-          <button className={zoom === 'scalar' ? 'on' : ''} aria-pressed={zoom === 'scalar'} onClick={() => setZoom('scalar')} title="Every element as its own node">Single numbers</button>
+          <button className={zoom === 'tensor' ? 'on' : ''} aria-pressed={zoom === 'tensor'} onClick={() => setZoom('tensor')} title={ZOOM_SHORT.tensor.line}>Tensors</button>
+          <button className={zoom === 'scalar' ? 'on' : ''} aria-pressed={zoom === 'scalar'} onClick={() => setZoom('scalar')} title={ZOOM_SHORT.scalar.line}>Single numbers</button>
         </div>
+        <span className="hint">{ZOOM_SHORT[zoom].line}</span>
         {pass === 'forwardMode' && spec && (
           <label className="field">direction
             <select value={tangentSeed ? `${tangentSeed.nodeId}:${tangentSeed.element}` : ''}
@@ -294,19 +305,12 @@ export function StepView(props: {
             </select>
           </label>
         )}
-        <button className="ghost" onClick={compareModes} disabled={modes === 'running'}>Reverse vs forward mode</button>
+        <button className="ghost" onClick={compareModes} disabled={modes === 'running'} title="Compute the gradients both ways and check they agree">Reverse vs forward mode</button>
       </div>
-      <div className="mode-guide">
-        <ul>
-          {PASSES.map((p) => (
-            <li key={p.pass} className={pass === p.pass ? 'on' : ''}><b>{MODE_SHORT[p.pass].name}:</b> {MODE_SHORT[p.pass].line}</li>
-          ))}
-        </ul>
-        <p className="mode-long"><b>{MODE_SHORT[pass].name}, step by step.</b> {MODE_LONG(preset.config.optim.lr)[pass]}</p>
-        <p><b>{ZOOM_SHORT.tensor.name}:</b> {ZOOM_SHORT.tensor.line}. <b>{ZOOM_SHORT.scalar.name}:</b> {ZOOM_SHORT.scalar.line}. <b>Reverse vs forward mode</b> (button): computes the gradients both ways and checks they agree.</p>
+      <div className="graph-key" aria-label="Key">
+        {GRAPH_KEY.map((k, i) => <span key={i}><i className={k.swatch} />{k.label}</span>)}
       </div>
 
-      <p className="explain-line graph-key">{GRAPH_LEGEND}</p>
       <div className="step-main">
         <div className="graph-wrap">
           <GraphCanvas spec={spec} shapes={shapes} highlight={highlight} values={values} grads={grads}
@@ -430,7 +434,7 @@ function StepExplain(props: {
         <div className="explain update">
           <h3>Update · {name(step.nodeId)}</h3>
           <p>The optimizer moves <b>{name(step.nodeId)}</b> a small step against its gradient, so the loss goes down. Learning rate <code>lr = {props.optim.lr}</code>.</p>
-          <p>{OPTIM_HELP[props.optim.kind]}</p>
+          <p><b>{props.optim.kind}</b>: {OPTIM_HELP[props.optim.kind]}</p>
           <p className="muted">The values in the boxes are still from before the update; the next train step’s forward pass uses the new ones.</p>
         </div>
       );

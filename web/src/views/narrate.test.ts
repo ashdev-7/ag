@@ -35,7 +35,7 @@ describe('live captions', () => {
     expect(activationStory([{ label: 'layer 1', fracZero: 0.4, std: 0.5 }], true)).toMatch(/normal for ReLU/);
     expect(activationStory([{ label: 'layer 5', fracZero: 0, std: 0.06 }], false)).toMatch(/narrow band/);
     expect(activationStory([{ label: 'layer 1', fracZero: 0, std: 0.45 }], false)).toMatch(/vary widely/);
-    expect(boundaryStory({ train: 0.53, val: 0.4 }, 900, 0.05)).toMatch(/almost one colour/);
+    expect(boundaryStory({ train: 0.53, val: 0.4 }, 900, 0.05)).toMatch(/almost one colour/i);
   });
 
   it('narrates the race', () => {
@@ -48,5 +48,8 @@ describe('live captions', () => {
     const done = raceStory([{ name: 'sgd', loss: [3, 2, 1, -1], diverged: false }, { name: 'adam', loss: [3, -1, -1, -1], diverged: false }]);
     expect(done).toMatch(/All of them have reached the bottom/);
     expect(done).toMatch(/first to get there was adam/);
+    // a slow racer at 0.05 is not at the bottom beside one at 1e-13, though both are far below the start
+    const slow = raceStory([{ name: 'sgd', loss: [11, 1, 0.049], diverged: false }, { name: 'adam', loss: [11, 1e-6, 4e-13], diverged: false }]);
+    expect(slow).toMatch(/Furthest behind: sgd/);
   });
 });

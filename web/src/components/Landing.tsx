@@ -19,27 +19,28 @@ export function Landing() {
   return (
     <div className="landing">
       <header className="hero">
-        <h1>Learn how neural networks learn</h1>
+        <span className="eyebrow">A course you can watch</span>
+        <h1>Learn how neural networks <span>learn</span></h1>
         <p>
-          A course from first principles to the ideas behind modern training, where every idea comes with something
-          to see: every number a network computes and every gradient it sends back, drawn as it happens, on a small
-          engine running in your browser.
+          From first principles to modern training, with every idea drawn live: each number a network computes and every
+          gradient it sends back, on a small engine running in your browser.
         </p>
-        <p>
-          Each lesson starts from a question, tells what people did before and what problem the idea solved, explains how
-          and why it works and where it is used today, then sends you to a lab to watch it happen.
-        </p>
-        <a className="button primary" href={`#lesson=${firstUnread.id}`}>
-          {done.size === 0 ? 'Start with lesson 1' : `Continue: ${firstUnread.title}`} →
-        </a>
+        <div className="hero-actions">
+          <a className="button primary" href={`#lesson=${firstUnread.id}`}>
+            {done.size === 0 ? 'Start with lesson 1' : `Continue: ${firstUnread.title}`} →
+          </a>
+          <a className="button" href="#preset=moons">Watch a network train</a>
+        </div>
       </header>
 
       {LEVELS.map((lv) => {
         const lessons = LESSONS.filter((l) => l.level === lv.level);
         return (
           <section key={lv.level} className={`level level-${lv.level}`}>
-            <h2>{lv.title}</h2>
-            <p className="muted">{lv.line}</p>
+            <div className="level-head">
+              <h2>{lv.title}</h2>
+              <p>{lv.line}</p>
+            </div>
             <ol className="lesson-list">
               {lessons.map((l) => (
                 <li key={l.id}>
@@ -58,11 +59,13 @@ export function Landing() {
       })}
 
       <h2 className="labs-title">The labs</h2>
-      <p className="muted">Every interactive example on its own, for exploring freely. Each lesson links to the right one.</p>
+      <p className="labs-lede">Every interactive example on its own, to explore freely.</p>
       {SECTIONS.map((s) => (
         <section key={s.mode} className="preset-section">
-          <h3>{s.title}</h3>
-          <p className="muted">{MODE_INTRO[s.mode]}</p>
+          <div>
+            <h3>{s.title}</h3>
+            <p>{MODE_INTRO[s.mode]}</p>
+          </div>
           <div className="cards">
             {PRESETS.filter((p) => p.mode === s.mode).map((p) => (
               <a key={p.id} className="card" href={`#preset=${p.id}`}>

@@ -17,7 +17,8 @@ import { GraphCanvas } from './GraphCanvas.tsx';
 import { fetchNeurons, NeuronDiagram } from './NeuronDiagram.tsx';
 import type { NeuronState } from './NeuronDiagram.tsx';
 import { OPTIM_HELP } from '../content/help.tsx';
-import { CONTROLS, DO_THIS, HOW_TRAINING_WORKS, OPTIMIZER_INTRO, PANEL, TRAIN_TASK } from '../content/train-text.tsx';
+import { OPTIMIZER_KEY, PANEL, TRAIN_TASK, TRAINING_LOOP } from '../content/train-text.tsx';
+import { Panel, Story } from './Panel.tsx';
 import { accuracy, activationStory, boundaryStory, gradStory, lossStory, trend } from '../views/narrate.ts';
 
 export const OPTIMIZERS: OptimConfig['kind'][] = ['sgd', 'momentum', 'nesterov', 'rmsprop', 'adam', 'adamw'];
@@ -316,45 +317,65 @@ export function TrainView(props: {
   const P = PANEL(preset.config.batchSize);
   const task = TRAIN_TASK[preset.id];
   const weightIds = preset.layers.map((l) => l.weight);
+  const filmstrip = film.length > 1 && (
+    <div className="film">
+      {film.map((f) => (
+        <figure key={f.step}>
+          <Canvas height={58} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
+          <figcaption>step {f.step}</figcaption>
+        </figure>
+      ))}
+    </div>
+  );
   return (
     <div className="train-view">
-      <section className="intro">
-        {task && <h2>{task.headline}</h2>}
-        {task && <p>{task.task}</p>}
-        <p>{HOW_TRAINING_WORKS(preset.config.batchSize)}</p>
-        {task && <p className="intro-lesson">{task.lesson}</p>}
-        <ol className="do-this">{DO_THIS.map((d, i) => <li key={i}>{d}</li>)}</ol>
-      </section>
+      <header className="lab-head">
+        <div>
+          <span className="eyebrow">Train · {preset.title}</span>
+          <h1>{task?.headline ?? preset.title}</h1>
+          {task && <p className="lede">{task.task}</p>}
+          {task && <p className="watch-for"><span><b>Watch for: </b>{task.lesson}</span></p>}
+        </div>
+        <div>
+          <span className="eyebrow">How training works</span>
+          <ol className="loop">
+            {TRAINING_LOOP(preset.config.batchSize).map((s) => <li key={s.name}><b>{s.name}</b><span>{s.line}</span></li>)}
+          </ol>
+        </div>
+      </header>
 
-      <div className="toolbar">
+      <div className="controls toolbar">
         <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
-        <button onClick={stepOnce} disabled={running}>Step</button>
-        <button onClick={reset}>Reset</button>
-        <label className="field">speed <span className="muted">slower</span>
+        <button onClick={stepOnce} disabled={running} title="Exactly one training step">Step</button>
+        <button onClick={reset} title="Start over from the same random weights">Reset</button>
+        <label className="field">speed
           <input type="range" min={1} max={100} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Training steps per screen update" />
-          <span className="muted">faster</span>
         </label>
-        <span className="counter">training step {a.step}</span>
-        <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers side by side</label>
+        <span className="counter step-count">step <b>{a.step}</b></span>
+        <span className="sep" />
+        <div className="optim-row">
+          {optims.map((o, i) => (
+            <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}
+              step={runs[i]?.step ?? 0} loss={runs[i]?.history.loss.at(-1)} fault={runs[i]?.fault} />
+          ))}
+        </div>
+        <span className="grow" />
+        <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
       </div>
-      <p className="explain-line">{CONTROLS}</p>
-      <p className="explain-line">{OPTIMIZER_INTRO}</p>
-      <div className="optim-row">
-        {optims.map((o, i) => (
-          <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}
-            step={runs[i]?.step ?? 0} loss={runs[i]?.history.loss.at(-1)} fault={runs[i]?.fault} />
-        ))}
-      </div>
-      {[...new Set(optims.map((o) => o.kind))].map((k) => <p key={k} className="explain-line">{OPTIM_HELP[k]}</p>)}
+      <p className="controls-foot">
+        <span><b>Run</b> trains until paused · <b>Step</b> makes one nudge · <b>speed</b>: steps per screen update</span>
+        <span>{OPTIMIZER_KEY}</span>
+      </p>
 
       <div className="train-grid">
-        <section className="panel graph-panel">
-          <h4>{netView === 'neurons' ? P.network.title : P.ops.title}</h4>
-          <span className="segmented small-seg" aria-label="Network view">
-            <button className={netView === 'neurons' ? 'on' : ''} aria-pressed={netView === 'neurons'} onClick={() => setNetView('neurons')}>Neurons</button>
-            <button className={netView === 'ops' ? 'on' : ''} aria-pressed={netView === 'ops'} onClick={() => setNetView('ops')}>Calculations</button>
-          </span>
-          <p className="explain">{netView === 'neurons' ? P.network.explain : P.ops.explain}</p>
+        <Panel n="①" className="span-7" title={netView === 'neurons' ? P.network.title : P.ops.title}
+          sub={netView === 'neurons' ? P.network.explain : P.ops.explain}
+          aside={
+            <span className="segmented small-seg" aria-label="Network view">
+              <button className={netView === 'neurons' ? 'on' : ''} aria-pressed={netView === 'neurons'} onClick={() => setNetView('neurons')}>Neurons</button>
+              <button className={netView === 'ops' ? 'on' : ''} aria-pressed={netView === 'ops'} onClick={() => setNetView('ops')}>Calculations</button>
+            </span>
+          }>
           {netView === 'neurons' ? (
             <NeuronDiagram preset={preset} state={neurons} />
           ) : (
@@ -363,19 +384,16 @@ export function TrainView(props: {
                 selected={selected} onSelect={setSelected} edgeWeights faultNode={a.fault?.nodeId} />
             </div>
           )}
-        </section>
+        </Panel>
 
         {grid && (
-          <section className="panel boundary-panel">
-            <h4>{P.boundary.title}</h4>
-            <p className="explain">{P.boundary.explain}</p>
-            <p className="story"><b>Right now:</b> {boundaryStory(acc, a.step, a.grid ? Math.max(...a.grid.data) - Math.min(...a.grid.data) : 1)}</p>
+          <Panel n="②" className="span-5 boundary-panel" title={P.boundary.title} sub={P.boundary.explain}>
             <div className="boundaries">
               {runs.map((r, i) => (
                 <div key={i} className="boundary">
                   {comparing && <div className="muted" style={{ color: PALETTE[i] }}>{r.optim.kind}</div>}
                   <div className="square">
-                    <Canvas height={260} draw={(ctx, w, h) => {
+                    <Canvas height={280} draw={(ctx, w, h) => {
                       if (r.grid) drawField(ctx, w, h, r.grid.data.map((p) => 2 * p - 1), r.grid.res, divergingScale(1));
                       if (data) drawPoints(ctx, w, h, data.x, labels, DOMAIN);
                     }} />
@@ -384,90 +402,75 @@ export function TrainView(props: {
               ))}
             </div>
             <div className="key">
-              <span><i style={{ background: '#e66101' }} />network says orange</span>
-              <span><i style={{ background: '#2166ac' }} />network says blue</span>
+              <span><i style={{ background: '#e66101' }} />says orange</span>
+              <span><i style={{ background: '#2166ac' }} />says blue</span>
               <span><i style={{ background: '#f7f7f7', border: '1px solid #ccc' }} />unsure</span>
-              <span><i className="dot" />dot = a real data point, in its true colour</span>
+              <span><i className="dot" />a real dot</span>
             </div>
-            {film.length > 1 && (
-              <div className="film">
-                {film.map((f) => (
-                  <figure key={f.step}>
-                    <Canvas height={64} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
-                    <figcaption>after step {f.step}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-          </section>
+            {filmstrip}
+            <Story>{boundaryStory(acc, a.step, a.grid ? Math.max(...a.grid.data) - Math.min(...a.grid.data) : 1)}</Story>
+          </Panel>
         )}
 
-        <section className="panel">
-          <h4>{P.loss.title}</h4>
-          <p className="explain">{P.loss.explain}</p>
-          <p className="story"><b>Right now:</b> {lossStory(a.history.loss, a.history.val, a.step)}</p>
-          <Canvas height={190} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, {
-            logY: true, yLabel: 'how wrong (loss)', refs: [{ y: Math.LN2, label: 'guessing 50/50 (0.69)' }],
+        <Panel n="③" className="span-4" title={P.loss.title} sub={P.loss.explain}>
+          <Canvas height={170} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, {
+            logY: true, yLabel: 'loss', refs: [{ y: Math.LN2, label: 'coin flip 0.69' }],
           })} />
           <div className="key">
             {runs.map((r, i) => (
               <span key={i}>
-                <i style={{ background: PALETTE[i], height: 3, verticalAlign: 3 }} />{comparing ? `${r.optim.kind}: ` : ''}solid = latest group of dots;
-                dashed = dots kept aside for testing
+                <i className="line" style={{ background: PALETTE[i] }} />{comparing ? `${r.optim.kind} ` : ''}training dots
+                <i className="dash" style={{ marginLeft: 12, color: PALETTE[i] }} />test dots
               </span>
             ))}
           </div>
-        </section>
+          <Story>{lossStory(a.history.loss, a.history.val, a.step)}</Story>
+        </Panel>
 
-        <section className="panel">
-          <h4>{P.grads.title} {comparing && <span className="muted">({runs[0].optim.kind})</span>}</h4>
-          <p className="explain">{P.grads.explain}</p>
+        <Panel n="④" className="span-4" title={<>{P.grads.title}{comparing && <span className="muted"> · {runs[0].optim.kind}</span>}</>} sub={P.grads.explain}>
           <LayerBars layers={nowNorms} />
-          <p className="story"><b>Right now:</b> {a.step === 0 ? 'Not trained yet: press Run or Step to compute the first corrections.' : gradStory(nowNorms, preset.layers.map((l) => a.history.norms[l.label] ?? []), trend(a.history.loss) === 'falling')}</p>
-          <Canvas height={170} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true, yLabel: 'correction size' })} />
-          <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: layerColor(i, preset.layers.length) }))} />
-        </section>
+          <div className="chart">
+            <Canvas height={120} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true, yLabel: 'gradient size' })} />
+          </div>
+          <Story>{a.step === 0 ? 'Not trained yet: press Run or Step to compute the first corrections.' : gradStory(nowNorms, preset.layers.map((l) => a.history.norms[l.label] ?? []), trend(a.history.loss) === 'falling')}</Story>
+        </Panel>
 
-        <section className="panel">
-          <h4>{P.acts.title}</h4>
-          <p className="explain">{P.acts.explain}</p>
-          <p className="story"><b>Right now:</b> {activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</p>
+        <Panel n="⑤" className="span-4" title={P.acts.title} sub={P.acts.explain}>
           <div className="hists">
             {preset.layers.slice(0, -1).map((l) => {
               const s = a.values[l.act];
               return (
                 <div key={l.label} className="hist">
-                  <div className="muted">{l.label}: {s ? `${Math.round(s.fracZero * 100)}% exactly zero` : ''}</div>
-                  {s && <Canvas height={60} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#5e3c99')} />}
+                  <div className="muted">{l.label}{s ? ` · ${Math.round(s.fracZero * 100)}% zero` : ''}</div>
+                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#7a5bb5')} />}
                 </div>
               );
             })}
           </div>
-        </section>
+          <Story>{activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</Story>
+        </Panel>
 
-        <section className="panel">
-          <h4>{P.inspect.title}</h4>
-          <p className="explain">{P.inspect.explain}</p>
-          <label className="field">show the weights of
-            <select value={selected && weightIds.includes(selected) ? selected : ''} onChange={(e) => setSelected(e.target.value || undefined)}>
+        <Panel n="⑥" className="span-12" title={P.inspect.title} sub={P.inspect.explain}
+          aside={
+            <select value={selected && weightIds.includes(selected) ? selected : ''} onChange={(e) => setSelected(e.target.value || undefined)} aria-label="Layer to inspect">
               <option value="">choose a layer…</option>
               {preset.layers.map((l) => <option key={l.weight} value={l.weight}>{l.label} ({l.weight})</option>)}
             </select>
-          </label>
-          {selected && inspect && (
+          }>
+          {selected && inspect ? (
             <div className="inspect-grid">
               {([['weights', inspect.value], ['their corrections (gradients)', inspect.grad], ['optimizer memory: average correction', inspect.m], ['optimizer memory: average squared correction', inspect.v]] as const)
                 .filter(([, d]) => d && maxAbs(d) > 0)
                 .map(([label, d]) => (
                   <div key={label}>
-                    <div className="muted">{label} <span>(largest: {fmt(maxAbs(d!))})</span></div>
+                    <div className="muted">{label} · largest {fmt(maxAbs(d!))}</div>
                     <Canvas height={Math.min(140, Math.max(24, (inspect.shape.length >= 2 ? inspect.shape[0] : 1) * 14))}
                       draw={(ctx, w, h) => drawTensor(ctx, w, h, d!, inspect.shape, divergingScale(maxAbs(d!)))} />
                   </div>
                 ))}
             </div>
-          )}
-        </section>
+          ) : <p className="hint">Choose a layer to open it up.</p>}
+        </Panel>
       </div>
     </div>
   );
@@ -483,25 +486,29 @@ export function Legend({ items }: { items: { label: string; color: string }[] })
   );
 }
 
+/** One optimizer: its rule, step size and cap, and one line saying what the rule does. */
 export function OptimControls(props: {
   optim: OptimConfig; color: string; onChange: (o: OptimConfig) => void; step: number; loss?: number; fault?: EngineError;
 }) {
   const o = props.optim;
   return (
-    <div className="optim" style={{ borderColor: props.color }}>
-      <select value={o.kind} onChange={(e) => props.onChange({ ...o, kind: e.target.value as OptimConfig['kind'] })} aria-label="Optimizer">
-        {OPTIMIZERS.map((k) => <option key={k} value={k}>{k}</option>)}
-      </select>
-      <label className="field">lr
-        <input type="number" step="any" min={0.0001} max={10} value={o.lr}
-          onChange={(e) => { const lr = Number(e.target.value); if (lr > 0 && lr <= 10) props.onChange({ ...o, lr }); }} />
-      </label>
-      <label className="field">clip
-        <input type="number" step="any" min={0} value={o.clipNorm ?? 0}
-          onChange={(e) => { const c = Number(e.target.value); if (c >= 0) props.onChange({ ...o, clipNorm: c }); }} />
-      </label>
-      {props.loss !== undefined && <span className="muted">loss {fmt(props.loss)}</span>}
-      {props.fault && <span className="bad">stopped: nan</span>}
+    <div className="optim" style={{ ['--c' as string]: props.color }}>
+      <div className="optim-top">
+        <select value={o.kind} onChange={(e) => props.onChange({ ...o, kind: e.target.value as OptimConfig['kind'] })} aria-label="Optimizer">
+          {OPTIMIZERS.map((k) => <option key={k} value={k}>{k}</option>)}
+        </select>
+        <label className="field" title="learning rate: the size of each nudge">lr
+          <input type="number" step="any" min={0.0001} max={10} value={o.lr}
+            onChange={(e) => { const lr = Number(e.target.value); if (lr > 0 && lr <= 10) props.onChange({ ...o, lr }); }} />
+        </label>
+        <label className="field" title="the largest nudge allowed; 0 = no limit">clip
+          <input type="number" step="any" min={0} value={o.clipNorm ?? 0}
+            onChange={(e) => { const c = Number(e.target.value); if (c >= 0) props.onChange({ ...o, clipNorm: c }); }} />
+        </label>
+        {props.loss !== undefined && <span className="optim-loss">loss {fmt(props.loss)}</span>}
+        {props.fault && <span className="bad">stopped: nan</span>}
+      </div>
+      <p className="optim-help">{OPTIM_HELP[o.kind]}</p>
     </div>
   );
 }

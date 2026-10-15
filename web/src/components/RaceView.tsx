@@ -11,7 +11,8 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
-import { OPTIM_HELP, RACE_GUIDES, RACE_HELP, RACE_SCREEN } from '../content/help.tsx';
+import { RACE_GUIDES, RACE_HELP, RACE_SCREEN } from '../content/help.tsx';
+import { Panel, Story } from './Panel.tsx';
 import { raceStory } from '../views/narrate.ts';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
@@ -100,46 +101,52 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
   let lo = Infinity, hi = -Infinity;
   surface.data.forEach((v) => { if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } });
 
+  const guide = RACE_GUIDES[preset.id];
   return (
     <div className="race-view">
-      <section className="intro">
-        <h2>{preset.title}: race four optimizers downhill</h2>
-        <p>{RACE_SCREEN}</p>
-        {RACE_GUIDES[preset.id] && <p>This landscape: {RACE_GUIDES[preset.id].formula}. {RACE_GUIDES[preset.id].idea}</p>}
-        {RACE_GUIDES[preset.id] && <ol className="do-this"><li>Press <b>Race</b>.</li>{RACE_GUIDES[preset.id].watch.map((w, k) => <li key={k}>{w}</li>)}<li>Change a learning rate (<b>lr</b>, the step size), press Reset, and race again.</li></ol>}
-      </section>
-      <div className="toolbar">
+      <header className="lab-head">
+        <div>
+          <span className="eyebrow">Race optimizers</span>
+          <h1>{preset.title}</h1>
+          <p className="lede">{RACE_SCREEN} {guide?.idea}</p>
+          {guide && <p className="formula-line">{guide.formula}</p>}
+        </div>
+        <div className="try">
+          <span className="eyebrow">Try this</span>
+          <ol>
+            <li>Press <b>Race</b>: all four start at ○ and head for the lowest point ★.</li>
+            {guide?.watch.map((w, k) => <li key={k}>{w}</li>)}
+            <li>Change an <b>lr</b> (step size), press Reset, race again.</li>
+          </ol>
+        </div>
+      </header>
+      <div className="controls toolbar">
         <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
-        <span className="muted">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
+        <span className="hint">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
       </div>
-      <div className="optim-row">
+      <div className="race-optims">
         {optims.map((o, i) => (
           <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}
             step={racers[i]?.steps.at(-1) ?? 0} loss={racers[i]?.loss.at(-1)} />
         ))}
       </div>
-      {[...new Set(optims.map((o) => o.kind))].map((k) => <p key={k} className="explain-line">{OPTIM_HELP[k]}</p>)}
       <div className="race-grid">
-        <section className="panel">
-          <h4>The landscape (x across, y up)</h4>
-          <p className="explain">{RACE_HELP.surface}</p>
+        <Panel title="The landscape" sub={RACE_HELP.surface}>
           <div className="square big">
-            <Canvas height={460} draw={(ctx, w, h) => {
+            <Canvas height={480} draw={(ctx, w, h) => {
               drawField(ctx, w, h, surface.data, surface.res, surfaceScale(lo, hi));
               drawPaths(ctx, w, h, racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], points: r.path })), race.domain);
-              drawMarkers(ctx, w, h, race.domain, racers[0].path[0], RACE_GUIDES[preset.id]?.goals ?? []);
+              drawMarkers(ctx, w, h, race.domain, racers[0].path[0], guide?.goals ?? []);
             }} />
           </div>
           <Legend items={racers.map((r, i) => ({ label: `${r.optim.kind}${r.done === 'diverged' ? ' (diverged)' : ''}`, color: PALETTE[i] }))} />
-        </section>
-        <section className="panel">
-          <h4>How low each one has got (lower is better)</h4>
-          <p className="explain">{RACE_HELP.loss}</p>
-          <p className="story">{raceStory(racers.map((r) => ({ name: r.optim.kind, loss: r.loss, diverged: r.done === 'diverged' })))}</p>
-          <Canvas height={220} draw={(ctx, w, h) => drawLines(ctx, w, h,
+        </Panel>
+        <Panel title="How low each one has got" sub={RACE_HELP.loss}>
+          <Canvas height={240} draw={(ctx, w, h) => drawLines(ctx, w, h,
             racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], x: r.steps, y: r.loss })), { logY: true, yLabel: 'loss (height)', xLabel: 'steps →' })} />
-        </section>
+          <Story>{raceStory(racers.map((r) => ({ name: r.optim.kind, loss: r.loss, diverged: r.done === 'diverged' })))}</Story>
+        </Panel>
       </div>
     </div>
   );
@@ -150,7 +157,7 @@ function drawMarkers(ctx: CanvasRenderingContext2D, w: number, h: number, d: { x
   start: [number, number], goals: [number, number][]) {
   const X = (x: number) => ((x - d.x0) / (d.x1 - d.x0)) * w, Y = (y: number) => (1 - (y - d.y0) / (d.y1 - d.y0)) * h;
   const label = (text: string, x: number, y: number) => {
-    ctx.font = '12px system-ui, sans-serif';
+    ctx.font = '500 12px Inter, system-ui, sans-serif';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.strokeText(text, x + 9, y + 4);

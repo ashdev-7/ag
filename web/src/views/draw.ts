@@ -75,7 +75,7 @@ export function drawTensor(ctx: CanvasRenderingContext2D, w: number, h: number, 
   const rows = shape.length >= 2 ? shape[0] : 1;
   const cols = shape.length === 0 ? 1 : shape.length === 1 ? shape[0] : data.length / shape[0];
   const cw = w / cols, ch = Math.min(h / rows, cw * 1.2 + 8);
-  ctx.font = `${Math.max(8, Math.min(13, ch * 0.4))}px ui-monospace, monospace`;
+  ctx.font = `${Math.max(8, Math.min(13, ch * 0.4))}px 'JetBrains Mono', ui-monospace, monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let r = 0; r < rows; ++r)
@@ -132,14 +132,18 @@ export function drawHistogram(ctx: CanvasRenderingContext2D, w: number, h: numbe
     const bh = (v / peak) * (h - 12);
     ctx.fillRect(i * bw + 0.5, h - 12 - bh, bw - 1, bh);
   });
-  ctx.fillStyle = '#666';
-  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillStyle = TICK;
+  ctx.font = CHART_FONT;
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'left';
   ctx.fillText(fmt(stats.histLo), 0, h);
   ctx.textAlign = 'right';
   ctx.fillText(fmt(stats.histHi), w, h);
 }
+
+/** Chart text: the page's own font, small and quiet. */
+export const CHART_FONT = '500 10.5px Inter, system-ui, sans-serif';
+const TICK = '#8b8b98', GRID = '#eeeef3';
 
 export interface Series { label: string; color: string; x: number[]; y: (number | null)[]; dash?: boolean }
 
@@ -154,7 +158,7 @@ export interface LineOpts {
 }
 
 export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, series: Series[], opts: LineOpts = {}) {
-  const pad = { l: 70, r: 8, t: 8, b: 20 };
+  const pad = { l: 50, r: 8, t: opts.yLabel ? 20 : 8, b: 20 };
   const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
   // a log scale only when every value is above zero: a loss that goes
   // negative (the saddle's minimum is −1) would otherwise be pinned at the floor
@@ -170,23 +174,24 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
     });
   // reference lines stay in view
   if (Number.isFinite(x0)) for (const r of opts.refs ?? []) if (!logY || r.y > 0) { y0 = Math.min(y0, ty(r.y)); y1 = Math.max(y1, ty(r.y)); }
-  ctx.strokeStyle = '#ddd';
-  ctx.strokeRect(pad.l, pad.t, pw, ph);
+  ctx.strokeStyle = '#dcdce4';
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t + ph + 0.5); ctx.lineTo(pad.l + pw, pad.t + ph + 0.5); ctx.stroke();
   if (!Number.isFinite(x0)) return;
   if (x1 === x0) x1 = x0 + 1;
   if (y1 - y0 < 1e-9) { y0 -= 0.5; y1 += 0.5; }
   const X = (x: number) => pad.l + ((x - x0) / (x1 - x0)) * pw;
   const Y = (y: number) => pad.t + (1 - (ty(y) - y0) / (y1 - y0)) * ph;
 
-  ctx.fillStyle = '#777';
-  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillStyle = TICK;
+  ctx.font = CHART_FONT;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let k = 0; k <= 3; ++k) {
     const v = y0 + ((y1 - y0) * k) / 3;
-    const yy = pad.t + (1 - k / 3) * ph;
-    ctx.fillText(fmt(logY ? 10 ** v : v), pad.l - 4, yy);
-    ctx.strokeStyle = '#f0f0f0';
+    const yy = Math.round(pad.t + (1 - k / 3) * ph) + 0.5;
+    ctx.fillText(fmt(logY ? 10 ** v : v), pad.l - 6, yy);
+    if (k === 0) continue;
+    ctx.strokeStyle = GRID;
     ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
   }
   ctx.textAlign = 'left';
@@ -197,27 +202,25 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
   ctx.textAlign = 'center';
   ctx.fillText(opts.xLabel ?? 'training steps →', pad.l + pw / 2, h - pad.b + 4);
   if (opts.yLabel) {
-    ctx.save();
-    ctx.translate(10, pad.t + ph / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${opts.yLabel}${logY ? ' (log scale)' : ''}`, 0, 0);
-    ctx.restore();
+    // the axis title, written level above the axis rather than sideways
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`↑ ${opts.yLabel}${logY ? ' (log scale)' : ''}`, 2, 0);
   }
   for (const r of opts.refs ?? []) {
     if (logY && r.y <= 0) continue;
     const yy = Y(r.y);
-    ctx.strokeStyle = '#999';
-    ctx.setLineDash([2, 3]);
+    ctx.strokeStyle = '#a8a8b4';
+    ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#5c5c68';
     ctx.textAlign = 'right';
     // above the line, or below it when the line is near the top
     const above = yy - pad.t > 14;
     ctx.textBaseline = above ? 'bottom' : 'top';
     ctx.fillText(r.label, pad.l + pw - 4, above ? yy - 2 : yy + 2);
-    ctx.fillStyle = '#777';
+    ctx.fillStyle = TICK;
   }
 
   for (const s of series) {

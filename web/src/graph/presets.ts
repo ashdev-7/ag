@@ -94,7 +94,7 @@ function trainPreset(id: string, title: string, blurb: string, data: SessionConf
 const expression: Preset = {
   id: 'expression',
   title: 'd = a·b + a',
-  blurb: 'Two numbers, two ops. a is used twice, so its gradient arrives in two pieces.',
+  blurb: 'The chain rule in two operations.',
   mode: 'step',
   spec: spec([
     node('a', 'input', [], { shape: [], init: 'constant', initScale: 2, requiresGrad: true }),
@@ -109,7 +109,7 @@ const expression: Preset = {
 const stopGrad: Preset = {
   id: 'detach',
   title: 'd = detach(a)·b + a',
-  blurb: 'The same expression with one use of a detached. Its value still flows forward; its gradient does not flow back.',
+  blurb: 'The same sum with one gradient path cut.',
   mode: 'step',
   spec: spec([
     node('a', 'input', [], { shape: [], init: 'constant', initScale: 2, requiresGrad: true }),
@@ -125,7 +125,7 @@ const stopGrad: Preset = {
 const neuron: Preset = {
   id: 'neuron',
   title: 'One neuron',
-  blurb: 'tanh(x·w + b) pulled towards a target of 0.5 by squared error.',
+  blurb: 'A single neuron learning one number.',
   mode: 'step',
   spec: spec([
     node('x', 'input', [], { shape: [1, 2], init: 'uniform', initScale: 1 }),
@@ -144,7 +144,7 @@ const neuron: Preset = {
 const broadcast: Preset = {
   id: 'broadcast',
   title: 'Broadcasting',
-  blurb: 'A bias of shape [2] is added to every row of a [3, 2] input, so its gradient is summed over the rows.',
+  blurb: 'One bias shared by every row.',
   mode: 'step',
   spec: spec([
     node('x', 'input', [], { shape: [3, 2], init: 'uniform', initScale: 1 }),
@@ -161,7 +161,7 @@ const tinyMlp = classifier([4], 'tanh');
 const mlpStep: Preset = {
   id: 'mlp',
   title: 'Two-layer MLP',
-  blurb: 'Four points from the moons dataset through 2 → 4 → 2. Small enough to open up into single numbers.',
+  blurb: 'A tiny classifier, opened up number by number.',
   mode: 'step',
   spec: tinyMlp.spec,
   layers: tinyMlp.layers,
@@ -171,21 +171,21 @@ const mlpStep: Preset = {
 
 // ── training presets ────────────────────────────────────────────────────────
 
-const moons = trainPreset('moons', 'Moons', 'Two interleaved half circles. A small tanh network bends a line around them.',
+const moons = trainPreset('moons', 'Moons', 'Bend a boundary around two half-moons.',
   'moons', classifier([8, 8], 'tanh'), { kind: 'adam', lr: 0.02 });
-const circles = trainPreset('circles', 'Circles', 'One class inside a ring of the other. ReLU units carve the plane into pieces.',
+const circles = trainPreset('circles', 'Circles', 'Draw a loop around the centre.',
   'circles', classifier([8, 8], 'relu'), { kind: 'adam', lr: 0.02 });
 // tanh networks sit on a plateau here for thousands of steps; ReLU does not
-const spirals = trainPreset('spirals', 'Spirals', 'Two arms wound around each other. Needs a wider network than the others.',
+const spirals = trainPreset('spirals', 'Spirals', 'The hardest shape: needs a wider network.',
   'spirals', classifier([32, 32], 'relu'), { kind: 'adam', lr: 0.01 }, 32, 600, 0.05);
-const xor = trainPreset('xor', 'XOR', 'Opposite corners share a class. No single line can separate them.',
+const xor = trainPreset('xor', 'XOR', 'The puzzle no single line can solve.',
   'xor', classifier([8], 'tanh'), { kind: 'momentum', lr: 0.1, momentum: 0.9 });
 
 const vanishing = trainPreset('vanishing', 'Vanishing gradients',
-  'Six sigmoid layers. Each multiplies the gradient by at most 0.25, so the first layers barely move.',
+  'A deep network whose early layers cannot learn.',
   'moons', classifier([8, 8, 8, 8, 8, 8], 'sigmoid'), { kind: 'sgd', lr: 0.5 });
 const deadRelu = trainPreset('dead-relu', 'Dead ReLUs',
-  'Biases start at -1.5, so every ReLU outputs zero for every input, passes no gradient back, and never recovers.',
+  'Neurons stuck at zero, forever.',
   'circles', classifier([16, 16], 'relu', { init: 'normal', initScale: 0.3, bias: { init: 'constant', scale: -1.5 } }),
   { kind: 'sgd', lr: 0.1 });
 
@@ -217,7 +217,7 @@ function racePreset(id: string, title: string, blurb: string, start: [number, nu
 const c = (id: string, value: number) => node(id, 'const', [], { shape: [], scalar: value, name: String(value) });
 
 const rosenbrock = racePreset('rosenbrock', 'Rosenbrock valley',
-  'A long curved valley with the minimum at (1, 1). Easy to find the valley, slow to follow it.',
+  'Easy to fall in, slow to follow.',
   [-1.5, 2],
   [
     c('one', 1), c('hundred', 100),
@@ -231,7 +231,7 @@ const rosenbrock = racePreset('rosenbrock', 'Rosenbrock valley',
   ], 'f', { x0: -2, x1: 2, y0: -1, y1: 3 }, racers);
 
 const saddle = racePreset('saddle', 'Saddle point',
-  'Starting almost exactly on a saddle. Plain gradient descent lingers; adaptive methods escape.',
+  'A mountain pass that traps slow optimizers.',
   [-1.8, 0.001],
   [
     c('quarter', 0.25),
@@ -245,7 +245,7 @@ const saddle = racePreset('saddle', 'Saddle point',
   [{ kind: 'sgd', lr: 0.01 }, { kind: 'momentum', lr: 0.01, momentum: 0.9 }, { kind: 'rmsprop', lr: 0.01, beta2: 0.99 }, { kind: 'adam', lr: 0.02 }]);
 
 const bowl = racePreset('bowl', 'Narrow bowl',
-  'Steep in y, shallow in x. Gradient descent zig-zags across; momentum smooths it out.',
+  'Steep one way, shallow the other: zig-zags.',
   [-1.8, 0.9],
   [
     c('half', 0.5), c('ten', 10),

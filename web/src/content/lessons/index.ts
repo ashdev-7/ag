@@ -9,9 +9,9 @@ export type { Lab, Lesson, Level } from './types.ts';
 export const LESSONS: Lesson[] = [...BEGINNER, ...INTERMEDIATE, ...ADVANCED];
 
 export const LEVELS: { level: Level; title: string; line: string }[] = [
-  { level: 'beginner', title: 'Beginner', line: 'From “what is a network” to backpropagation. No background needed beyond school algebra.' },
-  { level: 'intermediate', title: 'Intermediate', line: 'How real networks are built and trained: tensors, non-linearity, classification, the training loop.' },
-  { level: 'advanced', title: 'Advanced', line: 'Why training goes wrong and the ideas that fixed it: optimizers, vanishing gradients, initialisation.' },
+  { level: 'beginner', title: 'Beginner', line: 'What a network is, up to backpropagation. School algebra is enough.' },
+  { level: 'intermediate', title: 'Intermediate', line: 'How real networks are built and trained.' },
+  { level: 'advanced', title: 'Advanced', line: 'Why training goes wrong, and the ideas that fixed it.' },
 ];
 
 export function findLesson(id: string | undefined): Lesson | undefined {

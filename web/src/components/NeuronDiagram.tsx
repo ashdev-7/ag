@@ -82,7 +82,9 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
   const setHover = (text: string, picture?: number[]) => setHoverState({ text, picture });
   const acts = preset.layers.map((l, k) => (k === preset.layers.length - 1 ? 'softmax' : preset.spec.nodes.find((n) => n.id === l.act)?.op ?? ''));
   const sizes = state ? [state.weights[0].inDim, ...state.weights.map((w) => w.outDim)] : [];
-  const titles = ['input', ...preset.layers.map((l, k) => (k === preset.layers.length - 1 ? 'output (softmax)' : `${l.label} (${acts[k]})`))];
+  // each label from longest to shortest; the longest that fits its column is drawn
+  const titles: string[][] = [['input'], ...preset.layers.map((l, k) => (k === preset.layers.length - 1
+    ? ['output (softmax)', 'output'] : [`${l.label} (${acts[k]})`, l.label, `L${k + 1}`]))];
 
   useEffect(() => {
     const c = ref.current;
@@ -135,21 +137,27 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
         ctx.lineWidth = 1;
         ctx.strokeRect(b.x, b.y, b.s, b.s);
       });
-      ctx.fillStyle = '#6b6b75';
-      ctx.font = '11px system-ui, sans-serif';
+      const room = cols > 1 ? colX(1) - colX(0) - 8 : w;
+      const fitting = (options: string[]) => options.find((o) => ctx.measureText(o).width <= room) ?? '';
+      // centred on its column, kept inside the canvas at both edges
+      const label = (text: string, k: number, y: number) => {
+        const half = ctx.measureText(text).width / 2;
+        ctx.fillText(text, Math.min(w - half - 2, Math.max(half + 2, colX(k) + s / 2)), y);
+      };
+      ctx.fillStyle = '#8b8b98';
+      ctx.font = '500 11px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      titles.forEach((t, k) => ctx.fillText(t, colX(k) + s / 2, 12));
+      titles.forEach((t, k) => label(fitting(t), k, 12));
       // what each column does, under it
-      ctx.fillStyle = '#2f2f35';
-      ctx.font = '11.5px system-ui, sans-serif';
+      ctx.fillStyle = '#3d3d48';
+      ctx.font = '500 11.5px Inter, system-ui, sans-serif';
       sizes.forEach((_, k) => {
-        const what = k === 0 ? 'the dot’s position' : k === cols - 1 ? 'the answer' : k === 1 ? 'learn simple shapes' : 'combine them';
-        // keep the caption inside the canvas at both edges
-        const half = ctx.measureText(what).width / 2;
-        ctx.fillText(what, Math.min(w - half - 2, Math.max(half + 2, colX(k) + s / 2)), h - 8);
+        const what = k === 0 ? ['the dot’s position', 'position'] : k === cols - 1 ? ['the answer', 'answer']
+          : k === 1 ? ['learn simple shapes', 'simple shapes', 'shapes'] : ['combine them', 'combine'];
+        label(fitting(what), k, h - 8);
       });
-      ctx.fillStyle = '#6b6b75';
-      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillStyle = '#8b8b98';
+      ctx.font = '500 11px Inter, system-ui, sans-serif';
       // name the inputs and outputs
       ctx.textAlign = 'left';
       boxes.filter((b) => b.layer === 0).forEach((b) => ctx.fillText(b.index === 0 ? 'x₁' : 'x₂', b.x - 18, b.y + b.s / 2 + 4));
@@ -195,7 +203,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
   return (
     <div className="neurons">
       {/* wider layers get a taller diagram, so every neuron stays at least ~11 px */}
-      <canvas ref={ref} style={{ width: '100%', height: props.height ?? Math.max(300, 40 + Math.max(0, ...sizes) * 14), display: 'block' }}
+      <canvas ref={ref} style={{ width: '100%', height: props.height ?? Math.max(360, 40 + Math.max(0, ...sizes) * 14), display: 'block' }}
         onMouseMove={onMove} onMouseLeave={() => setHover('')} role="img" aria-label={`Network diagram: ${sizes.join(' → ')} neurons`} />
       <div className="story neuron-hover">
         {hover.picture && state && (
