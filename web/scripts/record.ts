@@ -45,6 +45,7 @@ function recordTrain(e: Engine, p: Preset) {
   const grid = s.evalGrid({ x0: -1.5, x1: 1.5, y0: -1.5, y1: 1.5, res: GRID, nodeId: p.boundary!.nodeId, element: p.boundary!.element });
   const acts = s.stats(p.layers.map((l) => l.act), 'value');
   const deadFrac = p.layers.map((l) => round(acts[l.act]?.fracZero ?? 0, 3));
+  s.free();
   const firstNorm = p.layers.map((l) => gradNorms[l.label][1]);
   console.log(`  ${p.id.padEnd(11)} final loss ${loss.at(-1)}  val ${val.at(-1)}  zeros per layer ${deadFrac.join(' ')}  early grad norm per layer ${firstNorm.join(' ')}`);
   return {

@@ -973,3 +973,15 @@ ANSWERED
 
   5. Verified: 66 unit tests; behaviour all passed; smoke 101/101 in
      Chromium, Firefox and WebKit.
+
+------------------------------------------------------------------------
+ENTRY 17   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Pages deploy failed in "npm run record": at most 8 sessions at once.
+
+ANSWERED
+  record.ts never freed a training preset's session; the ninth training
+  preset (overfit-more) hit the engine's limit. It now frees each one.
+  The run also writes the missing offline recordings for overfit,
+  overfit-more and spirals-small.
