@@ -74,7 +74,7 @@ try {
           'detach: a gets 1, not 4');
       }
       await page.screenshot({ path: join(shots, `${p.id}-tensor.png`) });
-      await page.getByText('Reverse vs forward mode').click();
+      await page.getByRole('button', { name: 'Reverse vs forward mode' }).click();
       await page.waitForSelector('.modes table', { timeout: 20000 });
       const match = await page.locator('.modes .ok').count();
       check(match === 1, `${p.id}: forward mode matches reverse mode`);
@@ -141,6 +141,24 @@ try {
   const queue = await page.locator('.queue li').allTextContents();
   check(queue.join('|') === 'ddone|cready|awaiting 1 of 2|bwaiting', `link: backward order at step 7 (${queue.join(', ')})`);
   check(errors.length === 0, `link: no console errors${errors.length ? ': ' + errors[0] : ''}`);
+
+  // chained train steps keep their updates, and the loss falls
+  await page.goto(`${base}#preset=neuron&pass=train`);
+  await page.reload();
+  await page.waitForSelector('.react-flow__node');
+  await page.getByTitle('To the end').click();
+  for (let k = 0; k < 3; ++k) {
+    await page.getByRole('button', { name: 'Next train step' }).click();
+    await page.waitForFunction(() => document.querySelector('.transport .counter')?.textContent?.startsWith('0 /'), null, { timeout: 5000 }).catch(() => {});
+    await page.getByTitle('To the end').click();
+    await sleep(300);
+  }
+  const lossText = (await page.locator('.train-steps p').textContent()) ?? '';
+  const losses = lossText.split(':')[1]?.split('→').map((x) => Number(x.trim())) ?? [];
+  check(losses.length === 3 && losses[2] < losses[0], `train steps: the loss falls over three steps (${losses.join(' → ')})`);
+  await page.goto(`${base}#preset=expression&pass=reverse&i=7`);
+  await page.reload();
+  await page.waitForSelector('.react-flow__node');
 
   // the stepper from the keyboard alone
   const counter = () => page.locator('.transport .counter').textContent();

@@ -66,8 +66,8 @@ main { flex: 1; padding: 12px 16px 24px; }
 .counter { font-variant-numeric: tabular-nums; color: var(--muted); }
 
 /* stepper */
-.step-view { display: flex; flex-direction: column; height: calc(100vh - 90px); min-height: 520px; }
-.step-main { flex: 1; display: grid; grid-template-columns: 1fr 340px; gap: 12px; min-height: 0; }
+.step-view { display: flex; flex-direction: column; }
+.step-main { display: grid; grid-template-columns: 1fr 360px; gap: 12px; height: max(460px, calc(100vh - 230px)); }
 .graph-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; height: 100%; min-height: 300px; }
 .graph-wrap.small { height: 300px; }
 .inspector { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow: auto; }
@@ -159,4 +159,29 @@ main { flex: 1; padding: 12px 16px 24px; }
   .graph-wrap { height: 420px; }
   .graph-panel { grid-column: auto; }
   .race-grid { grid-template-columns: 1fr; }
+}
+
+/* explanations */
+.guide { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+.guide summary { cursor: pointer; color: var(--muted); }
+.guide summary b { color: var(--ink); }
+.guide-body { max-width: 900px; line-height: 1.5; }
+.guide-body p { margin: 8px 0; }
+.guide-body ul { margin: 4px 0 4px; padding-left: 20px; }
+.guide-body li { margin: 3px 0; }
+.guide-try { font-weight: 600; margin-top: 8px; }
+.mode-help { margin: -2px 0 10px; line-height: 1.45; max-width: 1100px; }
+.mode-help p { margin: 2px 0; }
+.help { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 2px 0 8px; max-width: 1100px; }
+.key-value { color: var(--forward); font-weight: 600; }
+.key-grad { color: var(--backward); font-weight: 600; }
+.key-tan { color: var(--tangent); font-weight: 600; }
+.train-steps { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+.train-steps p { margin: 6px 0 0; }
+.basics dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 8px 0 0; }
+.basics dt { font-weight: 600; }
+.basics dd { margin: 2px 0 0; color: var(--muted); line-height: 1.45; }
+@media (max-width: 860px) {
+  .basics dl { grid-template-columns: 1fr; }
+  .step-main { height: auto; }
 }

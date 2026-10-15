@@ -5,7 +5,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
-import type { Cursor, EngineError, PassKind, ScalarView, Stats, Step, TangentSeed } from '../engine/protocol.ts';
+import type { Cursor, EngineError, OptimConfig, PassKind, ScalarView, Stats, Step, TangentSeed } from '../engine/protocol.ts';
+import { GRAPH_LEGEND, MODES_HELP, OPTIM_HELP, PASS_HELP, STEP_GUIDES, ZOOM_HELP } from '../content/help.tsx';
 import type { Preset } from '../graph/presets.ts';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import { divergingScale, drawTensor, fmt, maxAbs } from '../views/draw.ts';
@@ -15,6 +16,7 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
+import { GuideCard, Help } from './Guide.tsx';
 
 const PASSES: { pass: PassKind; label: string; hint: string }[] = [
   { pass: 'forward', label: 'Forward', hint: 'values only' },
@@ -52,6 +54,7 @@ export function StepView(props: {
   const [delay, setDelay] = useState(450);
   const [tangentSeed, setTangentSeed] = useState<TangentSeed | null>(null);
   const [modes, setModes] = useState<ModeResult | 'running' | null>(null);
+  const [trainLosses, setTrainLosses] = useState<number[]>([]);
   const firstSeek = useRef(props.url.i ?? 0);
   const generation = useRef(0);
 
@@ -199,6 +202,18 @@ export function StepView(props: {
     [spec, schedule, cursor.index, tangentSeed],
   );
 
+  // keep this train step's update and begin the next one on a fresh batch
+  const nextTrainStep = async () => {
+    if (!active || !spec) return;
+    const loss = values[spec.loss]?.mean;
+    const gen = ++generation.current;
+    setPlaying(false);
+    const b = await active.begin('train');
+    if (!b.ok) return onBanner({ kind: 'error', text: describe(b.error), error: b.error });
+    if (loss !== undefined) setTrainLosses((l) => [...l, loss]);
+    await refresh(active, b.value, gen);
+  };
+
   // reverse mode once against forward mode once per leaf element
   const compareModes = async () => {
     if (!active || !spec) return;
@@ -249,6 +264,7 @@ export function StepView(props: {
 
   return (
     <div className="step-view">
+      <GuideCard title={preset.title} guide={STEP_GUIDES[preset.id]} />
       <div className="toolbar">
         <div className="segmented" role="tablist" aria-label="Pass">
           {PASSES.map((p) => (
@@ -275,6 +291,10 @@ export function StepView(props: {
         )}
         <button className="ghost" onClick={compareModes} disabled={modes === 'running'}>Reverse vs forward mode</button>
       </div>
+      <div className="mode-help">
+        <p><b>{PASS_HELP[pass].title}.</b> {PASS_HELP[pass].body}</p>
+        <p>{ZOOM_HELP[zoom]}</p>
+      </div>
 
       <div className="step-main">
         <div className="graph-wrap">
@@ -283,8 +303,14 @@ export function StepView(props: {
             faultNode={cursor.fault?.nodeId} stops={stops} />
         </div>
         <aside className="inspector">
-          <StepExplain step={step} spec={spec} byId={byId} values={values} grads={grads} schedule={schedule}
-            index={cursor.index} pass={pass} seed={tangentSeed} scalarZoom={zoom === 'scalar'} />
+          <StepExplain step={step} spec={spec} byId={byId} values={values} grads={grads} shapes={shapes} schedule={schedule}
+            index={cursor.index} pass={pass} seed={tangentSeed} optim={preset.config.optim} />
+          {pass === 'train' && (cursor.index >= cursor.length || trainLosses.length > 0) && (
+            <div className="train-steps">
+              {cursor.index >= cursor.length && <button className="primary" onClick={nextTrainStep}>Next train step</button>}
+              {trainLosses.length > 0 && <p className="muted">Loss of each finished train step: {trainLosses.map(fmt).join(' → ')}</p>}
+            </div>
+          )}
           {selNode ? (
             <NodeDetail node={selNode} detail={detail} gradLabel={pass === 'forwardMode' ? 'tangent' : 'gradient'}
               done={highlight.valueDone.has(selNode.id)} gradDone={highlight.gradDone.has(selNode.id)} />
@@ -298,6 +324,7 @@ export function StepView(props: {
         </aside>
       </div>
 
+      <Help>{GRAPH_LEGEND}</Help>
       <div className="transport">
         <button onClick={() => go(0)} title="Back to the start (Home)" aria-label="Back to the start">⏮</button>
         <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} title="One step back (←)" aria-label="One step back">◀</button>
@@ -320,52 +347,71 @@ export function StepView(props: {
 
 function StepExplain(props: {
   step?: Step; spec: GraphSpec; byId: Map<string, NodeSpec>; values: Record<string, Stats>; grads: Record<string, Stats>;
-  schedule: Step[]; index: number; pass: PassKind; seed: TangentSeed | null; scalarZoom: boolean;
+  shapes: Record<string, number[]>; schedule: Step[]; index: number; pass: PassKind; seed: TangentSeed | null;
+  optim: OptimConfig;
 }) {
-  const { step, byId, values, grads } = props;
+  const { step, byId, values, grads, shapes } = props;
   const name = (id: string) => byId.get(id)?.name ?? id;
-  if (!step) return <div className="explain"><h3>Ready</h3><p>Press play or step forward. Nothing has been computed yet.</p></div>;
-  const n = byId.get(step.nodeId);
+  // a box holds a single number: show the arithmetic with real numbers
+  const single = (id: string) => (shapes[id] ?? []).reduce((a, b) => a * b, 1) === 1;
   const v = (id: string) => values[id]?.mean ?? NaN;
   const g = (id: string) => grads[id]?.mean ?? NaN;
+  if (!step)
+    return (
+      <div className="explain">
+        <h3>Nothing computed yet</h3>
+        <p>Press ▶ (or the → key) for one step, or Play to run them all. The box that just ran is outlined, and this panel says what it did.</p>
+      </div>
+    );
+  const n = byId.get(step.nodeId);
 
   switch (step.kind) {
-    case 'forward':
+    case 'forward': {
+      if (!n || n.inputs.length === 0)
+        return (
+          <div className="explain forward">
+            <h3>Forward · {name(step.nodeId)}</h3>
+            <p>{n?.op === 'param' ? <>A <b>parameter</b>: a number the network learns. Its current value is read in.</>
+              : n?.op === 'const' ? <>A <b>constant</b>: a fixed number that is part of the formula.</>
+              : <>A <b>fixed input</b>: its value is given, not learned{n?.role ? ' (here, the current batch of data)' : ''}.</>}</p>
+            {single(step.nodeId) && <p className="big">{name(step.nodeId)} = {fmt(v(step.nodeId))}</p>}
+          </div>
+        );
+      const allSingle = single(step.nodeId) && n.inputs.every(single);
       return (
         <div className="explain forward">
           <h3>Forward · {name(step.nodeId)}</h3>
-          {n && n.inputs.length > 0 ? (
-            <p><code>{name(step.nodeId)} = {n.op}({n.inputs.map(name).join(', ')})</code></p>
-          ) : (
-            <p>{n?.op === 'param' ? 'A parameter: its current value is read.' : 'A leaf: its value is given.'}</p>
-          )}
-          {props.scalarZoom && <p className="big">{fmt(v(step.nodeId))}</p>}
+          <p>Computes <code>{name(step.nodeId)} = {formula(n, n.inputs.map(name))}</code> from its inputs, which are already known.</p>
+          {allSingle && <p className="big">{formula(n, n.inputs.map((i) => fmt(v(i))))} = {fmt(v(step.nodeId))}</p>}
         </div>
       );
+    }
     case 'seedGrad':
       return (
         <div className="explain backward">
-          <h3>Seed</h3>
-          <p><code>∂L/∂{name(step.nodeId)} = 1</code></p>
-          <p>The backward pass starts at the loss.</p>
+          <h3>Backward starts at the loss</h3>
+          <p>The gradient of the loss with respect to itself is 1: <code>∂L/∂L = 1</code>. Every other gradient is built from this one, going back along the arrows.</p>
         </div>
       );
     case 'vjp': {
       const target = n?.inputs[step.slot] ?? '';
-      const total = props.schedule.filter((s) => s.kind === 'vjp' && byId.get(s.nodeId)?.inputs[s.slot] === target).length;
-      const sofar = props.schedule.slice(0, props.index).filter((s) => s.kind === 'vjp' && byId.get(s.nodeId)?.inputs[s.slot] === target).length;
+      const uses = (k: Step) => k.kind === 'vjp' && byId.get(k.nodeId)?.inputs[k.slot] === target;
+      const total = props.schedule.filter(uses).length;
+      const sofar = props.schedule.slice(0, props.index).filter(uses).length;
       const local = n ? localDerivative(n.op, step.slot, n.inputs.map(name), n.scalar) : '';
-      const localValue = n && props.scalarZoom ? localDerivativeValue(n.op, step.slot, n.inputs.map(v), v(step.nodeId), n.scalar) : undefined;
+      const nums = !!n && single(step.nodeId) && single(target) && n.inputs.every(single);
+      const localValue = nums ? localDerivativeValue(n!.op, step.slot, n!.inputs.map(v), v(step.nodeId), n!.scalar) : undefined;
       return (
         <div className="explain backward">
           <h3>Backward · {name(step.nodeId)} → {name(target)}</h3>
-          <p><code>∂L/∂{name(target)} += ∂L/∂{name(step.nodeId)} · ∂{name(step.nodeId)}/∂{name(target)}</code></p>
-          <p>Local derivative: <code>{local}</code></p>
+          <p><b>{name(step.nodeId)}</b> passes gradient back to its input <b>{name(target)}</b>. Chain rule: the gradient at {name(step.nodeId)} times how much {name(step.nodeId)} moves when {name(target)} moves.</p>
+          <p><code>∂L/∂{name(target)} += ∂L/∂{name(step.nodeId)} × ∂{name(step.nodeId)}/∂{name(target)}</code></p>
+          <p>Local derivative <code>∂{name(step.nodeId)}/∂{name(target)}</code> = <code>{local}</code></p>
           {localValue !== undefined && (
             <p className="big">{fmt(g(step.nodeId))} × {fmt(localValue)} = {fmt(g(step.nodeId) * localValue)}</p>
           )}
-          {total > 1 && <p className="muted">Contribution {sofar} of {total}: {name(target)} is used {total} times, and its gradient is the sum.</p>}
-          {props.scalarZoom && <p>∂L/∂{name(target)} is now <b>{fmt(g(target))}</b></p>}
+          {total > 1 && <p className="muted">{name(target)} is used {total} times, so its gradient is the sum of {total} pieces; this is piece {sofar}.</p>}
+          {single(target) && <p>∂L/∂{name(target)} is now <b>{fmt(g(target))}</b>{total > 1 && sofar < total ? ' so far' : ''}.</p>}
         </div>
       );
     }
@@ -373,25 +419,57 @@ function StepExplain(props: {
       return (
         <div className="explain update">
           <h3>Update · {name(step.nodeId)}</h3>
-          <p>The optimizer moves {name(step.nodeId)} against its gradient.</p>
+          <p>The optimizer moves <b>{name(step.nodeId)}</b> a small step against its gradient, so the loss goes down. Learning rate <code>lr = {props.optim.lr}</code>.</p>
+          <p>{OPTIM_HELP[props.optim.kind]}</p>
+          <p className="muted">The values in the boxes are still from before the update; the next train step’s forward pass uses the new ones.</p>
         </div>
       );
     case 'seedTangent':
       return (
         <div className="explain tangent">
-          <h3>Seed direction</h3>
-          <p><code>ṫ {props.seed ? name(props.seed.nodeId) : ''}[{props.seed?.element}] = 1</code>, every other input 0.</p>
-          <p>Forward mode follows this one direction through the graph.</p>
+          <h3>Forward mode starts</h3>
+          <p>The chosen input <code>{props.seed ? name(props.seed.nodeId) : ''}[{props.seed?.element}]</code> gets a nudge <code>ṫ = 1</code>; every other input gets 0. The next steps carry this nudge forward.</p>
         </div>
       );
     case 'jvp':
       return (
         <div className="explain tangent">
           <h3>Tangent · {name(step.nodeId)}</h3>
-          <p><code>ṫ{name(step.nodeId)} = Σ ∂{name(step.nodeId)}/∂input · ṫinput</code></p>
-          {props.scalarZoom && <p className="big">{fmt(g(step.nodeId))}</p>}
+          <p>How much <b>{name(step.nodeId)}</b> moves when the chosen input is nudged: each input’s nudge times the local derivative, summed.</p>
+          <p><code>ṫ{name(step.nodeId)} = Σ ∂{name(step.nodeId)}/∂input × ṫinput</code></p>
+          {single(step.nodeId) && <p className="big">ṫ{name(step.nodeId)} = {fmt(g(step.nodeId))}</p>}
+          {step.nodeId === props.spec.loss && <p>This is the loss, so this number is <b>∂L/∂{props.seed ? name(props.seed.nodeId) : ''}[{props.seed?.element}]</b>.</p>}
         </div>
       );
+  }
+}
+
+/** The op as a formula of its inputs, e.g. "a × b". */
+function formula(n: NodeSpec, ins: string[]): string {
+  const [a, b] = ins;
+  switch (n.op) {
+    case 'add': return `${a} + ${b}`;
+    case 'sub': return `${a} − ${b}`;
+    case 'mul': return `${a} × ${b}`;
+    case 'div': return `${a} / ${b}`;
+    case 'neg': return `−${a}`;
+    case 'pow': return `${a}^${n.scalar ?? 0}`;
+    case 'exp': return `exp(${a})`;
+    case 'log': return `log(${a})`;
+    case 'matmul': return `${a} @ ${b}`;
+    case 'sum': return `sum(${a})`;
+    case 'mean': return `mean(${a})`;
+    case 'reshape': return `reshape(${a})`;
+    case 'transpose': return `${a}ᵀ`;
+    case 'relu': return `max(0, ${a})`;
+    case 'leaky_relu': return `leaky_relu(${a})`;
+    case 'tanh': return `tanh(${a})`;
+    case 'sigmoid': return `sigmoid(${a})`;
+    case 'softmax': return `softmax(${a})`;
+    case 'mse_loss': return `mean((${a} − ${b})²)`;
+    case 'softmax_cross_entropy': return `cross_entropy(${a}, ${b})`;
+    case 'detach': return `detach(${a})`;
+    default: return `${n.op}(${ins.join(', ')})`;
   }
 }
 
@@ -454,6 +532,7 @@ function ModesPanel({ modes, onClose }: { modes: ModeResult | 'running'; onClose
   return (
     <div className="modes">
       <h3>Reverse vs forward mode <button className="ghost small" onClick={onClose}>×</button></h3>
+      <p className="muted">{MODES_HELP}</p>
       <p><b>Reverse mode:</b> 1 pass gave all {modes.rows.length} derivatives of the loss.</p>
       <p><b>Forward mode:</b> {modes.passes} passes{modes.truncated ? ' (stopped at 200)' : ''}, one per input number.</p>
       <p className={modes.worst < 1e-4 ? 'ok' : 'bad'}>

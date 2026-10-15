@@ -1,10 +1,11 @@
 import { PRESETS } from '../graph/presets.ts';
 import type { PresetMode } from '../graph/presets.ts';
+import { BASICS, MODE_INTRO } from '../content/help.tsx';
 
-const SECTIONS: { mode: PresetMode; title: string; line: string }[] = [
-  { mode: 'step', title: 'Step through', line: 'One micro-step at a time: every value forward, every gradient back, edge by edge.' },
-  { mode: 'train', title: 'Train', line: 'Watch the boundary bend, the loss fall and each layer’s gradients, live.' },
-  { mode: 'race', title: 'Race optimizers', line: 'SGD, momentum, RMSProp and Adam from the same start on the same surface.' },
+const SECTIONS: { mode: PresetMode; title: string }[] = [
+  { mode: 'step', title: 'Step through' },
+  { mode: 'train', title: 'Train' },
+  { mode: 'race', title: 'Race optimizers' },
 ];
 
 export function Landing() {
@@ -16,11 +17,20 @@ export function Landing() {
           Every number a network computes, every gradient it sends back, every step an optimizer takes, drawn as it
           happens. The engine is a small C++ autodiff library compiled to WebAssembly; it runs here, in your browser.
         </p>
+        <p>New to this? Read the six ideas below, then open <a href="#preset=expression">d = a·b + a</a> and press → a few times.</p>
       </header>
+      <section className="basics">
+        <h2>The six ideas this site shows</h2>
+        <dl>
+          {BASICS.map((b) => (
+            <div key={b.term}><dt>{b.term}</dt><dd>{b.text}</dd></div>
+          ))}
+        </dl>
+      </section>
       {SECTIONS.map((s) => (
         <section key={s.mode} className="preset-section">
           <h2>{s.title}</h2>
-          <p className="muted">{s.line}</p>
+          <p className="muted">{MODE_INTRO[s.mode]}</p>
           <div className="cards">
             {PRESETS.filter((p) => p.mode === s.mode).map((p) => (
               <a key={p.id} className="card" href={`#preset=${p.id}`}>

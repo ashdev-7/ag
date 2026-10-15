@@ -185,7 +185,7 @@ const vanishing = trainPreset('vanishing', 'Vanishing gradients',
   'Six sigmoid layers. Each multiplies the gradient by at most 0.25, so the first layers barely move.',
   'moons', classifier([8, 8, 8, 8, 8, 8], 'sigmoid'), { kind: 'sgd', lr: 0.5 });
 const deadRelu = trainPreset('dead-relu', 'Dead ReLUs',
-  'Biases start at -1.5, so most ReLUs output zero for every input and pass no gradient back.',
+  'Biases start at -1.5, so every ReLU outputs zero for every input, passes no gradient back, and never recovers.',
   'circles', classifier([16, 16], 'relu', { init: 'normal', initScale: 0.3, bias: { init: 'constant', scale: -1.5 } }),
   { kind: 'sgd', lr: 0.1 });
 

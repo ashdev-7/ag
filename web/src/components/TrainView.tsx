@@ -14,6 +14,8 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
+import { GuideCard, Help } from './Guide.tsx';
+import { OPTIM_HELP, PANEL_HELP, TRAIN_GUIDES, TRAIN_SETUP } from '../content/help.tsx';
 
 export const OPTIMIZERS: OptimConfig['kind'][] = ['sgd', 'momentum', 'nesterov', 'rmsprop', 'adam', 'adamw'];
 const DOMAIN = { x0: -1.5, x1: 1.5, y0: -1.5, y1: 1.5 };
@@ -266,6 +268,9 @@ export function TrainView(props: {
 
   return (
     <div className="train-view">
+      <GuideCard title={preset.title} guide={TRAIN_GUIDES[preset.id]}>
+        <p>{TRAIN_SETUP}</p>
+      </GuideCard>
       <div className="toolbar">
         <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
         <button onClick={stepOnce} disabled={running}>Step</button>
@@ -278,16 +283,19 @@ export function TrainView(props: {
         <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
       </div>
 
+      <Help>{PANEL_HELP.controls}</Help>
       <div className="optim-row">
         {optims.map((o, i) => (
           <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}
             step={runs[i]?.step ?? 0} loss={runs[i]?.history.loss.at(-1)} fault={runs[i]?.fault} />
         ))}
       </div>
+      {[...new Set(optims.map((o) => o.kind))].map((k) => <Help key={k}>{OPTIM_HELP[k]}</Help>)}
 
       <div className="train-grid">
         <section className="panel graph-panel">
-          <h4>Network <span className="muted">edge width: gradient size</span></h4>
+          <h4>Network</h4>
+          <Help>{PANEL_HELP.network}</Help>
           <div className="graph-wrap small">
             <GraphCanvas spec={preset.spec} shapes={shapes} highlight={highlight} values={graphStats.values} grads={graphStats.grads}
               selected={selected} onSelect={setSelected} edgeWeights faultNode={a.fault?.nodeId} />
@@ -297,6 +305,7 @@ export function TrainView(props: {
         {grid && (
           <section className="panel boundary-panel">
             <h4>Decision boundary</h4>
+            <Help>{PANEL_HELP.boundary}</Help>
             <div className="boundaries">
               {runs.map((r, i) => (
                 <div key={i} className="boundary">
@@ -314,19 +323,22 @@ export function TrainView(props: {
         )}
 
         <section className="panel">
-          <h4>Loss <span className="muted">solid: training batch · dashed: validation</span></h4>
+          <h4>Loss</h4>
+          <Help>{PANEL_HELP.loss}</Help>
           <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, { logY: true })} />
           <Legend items={runs.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i] }))} />
         </section>
 
         <section className="panel">
           <h4>Gradient norm per layer <span className="muted">{comparing ? runs[0].optim.kind : ''}</span></h4>
+          <Help>{PANEL_HELP.gradNorm}</Help>
           <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true })} />
           <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: layerColor(i, preset.layers.length) }))} />
         </section>
 
         <section className="panel">
-          <h4>Activations per layer <span className="muted">share of exact zeros in brackets</span></h4>
+          <h4>Activations per layer</h4>
+          <Help>{PANEL_HELP.acts}</Help>
           <div className="hists">
             {preset.layers.map((l) => {
               const s = a.values[l.act];
@@ -342,7 +354,8 @@ export function TrainView(props: {
 
         <section className="panel">
           <h4>{selected ? `Inside ${selected}` : 'Inspect'}</h4>
-          {!selected && <p className="muted">Click a weight in the network to see its values, gradient and optimizer state.</p>}
+          <Help>{PANEL_HELP.inspect}</Help>
+          {!selected && <p className="muted">Click a purple weight box in the network to look inside it.</p>}
           {selected && inspect && (
             <div className="inspect-grid">
               {([['value', inspect.value], ['gradient', inspect.grad], ['first moment (velocity)', inspect.m], ['second moment', inspect.v]] as const)

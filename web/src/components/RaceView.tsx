@@ -11,6 +11,8 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
+import { GuideCard, Help } from './Guide.tsx';
+import { OPTIM_HELP, RACE_GUIDES, RACE_HELP } from '../content/help.tsx';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
 
@@ -100,6 +102,9 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
 
   return (
     <div className="race-view">
+      <GuideCard title={preset.title} guide={RACE_GUIDES[preset.id]}>
+        {RACE_GUIDES[preset.id] && <p>The loss: {RACE_GUIDES[preset.id].formula}</p>}
+      </GuideCard>
       <div className="toolbar">
         <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
@@ -111,9 +116,11 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
             step={racers[i]?.steps.at(-1) ?? 0} loss={racers[i]?.loss.at(-1)} />
         ))}
       </div>
+      {[...new Set(optims.map((o) => o.kind))].map((k) => <Help key={k}>{OPTIM_HELP[k]}</Help>)}
       <div className="race-grid">
         <section className="panel">
-          <h4>Loss surface <span className="muted">darker is lower · x horizontal, y vertical</span></h4>
+          <h4>Loss surface <span className="muted">x horizontal, y vertical</span></h4>
+          <Help>{RACE_HELP.surface}</Help>
           <div className="square big">
             <Canvas height={460} draw={(ctx, w, h) => {
               drawField(ctx, w, h, surface.data, surface.res, surfaceScale(lo, hi));
@@ -124,6 +131,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
         </section>
         <section className="panel">
           <h4>Loss over steps</h4>
+          <Help>{RACE_HELP.loss}</Help>
           <Canvas height={220} draw={(ctx, w, h) => drawLines(ctx, w, h,
             racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], x: r.steps, y: r.loss })), { logY: true })} />
         </section>
