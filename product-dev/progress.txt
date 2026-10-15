@@ -754,3 +754,32 @@ ANSWERED
      51 web unit tests (caption logic tested, including the wording for
      dead, vanishing and healthy cases); verify 157; smoke 80 in Chromium;
      captions read live on moons, vanishing, dead ReLUs and rosenbrock.
+
+
+------------------------------------------------------------------------
+ENTRY 12   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  Keep the current network design, but also show the famous one: input,
+  hidden and output layers as neurons, with the weights as connecting
+  edges.
+
+ANSWERED
+  - Training labs: the Network panel now opens on a "Neurons" view, with
+    the operation graph one click away ("Operations").
+  - Neurons in columns: input (x1, x2), each hidden layer (labelled with
+    its activation), output (one per class, softmax). Every weight is a
+    line: orange positive, blue negative, width and opacity by size
+    relative to the largest weight in that layer. Refreshed twice a second
+    while training and after Step or Reset.
+  - Inside each neuron: its output at every point of the input plane (24 x
+    24, read with evalGrid on that neuron's element), in the style of
+    TensorFlow Playground, so hidden layers visibly learn simple features
+    (one side of a line for ReLU) that later layers combine.
+  - Hover: a neuron explains itself (its bias, its activation, what its
+    picture means) and shows its picture enlarged; a line gives its weight
+    and what the sign means. Wider layers make a taller diagram so every
+    neuron stays readable (spirals: 32 per layer).
+  - Smoke test: hovering a hidden neuron must explain it, on every training
+    lab; 86 checks pass. Not done: the stepping labs keep the operation
+    graph only (they step through operations, not neurons).
