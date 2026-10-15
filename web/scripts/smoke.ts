@@ -8,7 +8,7 @@
 //
 // Serves dist/ itself, so it tests exactly what would be deployed.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
@@ -24,7 +24,7 @@ mkdirSync(shots, { recursive: true });
 const PORT = 4173;
 const win = process.platform === 'win32';
 // its own process group on unix, so the whole tree can be stopped at the end
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { shell: true, stdio: 'ignore', detached: !win });
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', detached: !win });
 const base = `http://localhost:${PORT}/`;
 
 let failed = 0;
@@ -269,7 +269,7 @@ try {
 
   await browser.close();
 } finally {
-  if (win) spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+  if (win) spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
   else process.kill(-server.pid!, 'SIGTERM');
 }
 console.log(`=== ${failed ? `${failed} failed` : 'all passed'} ===`);

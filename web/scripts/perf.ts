@@ -12,7 +12,7 @@
 // Headless browsers have no display, so these are an upper bound on what a
 // visitor's machine does with the same CPU; compare runs, not absolutes.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Page } from 'playwright';
 import { PRESETS } from '../src/graph/presets.ts';
@@ -23,7 +23,7 @@ const browserType = ({ chromium, firefox, webkit } as const)[browserName as 'chr
 if (!browserType) throw new Error(`unknown browser ${browserName}`);
 const PORT = 4175;
 const win = process.platform === 'win32';
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { shell: true, stdio: 'ignore', detached: !win });
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', detached: !win });
 const base = `http://localhost:${PORT}/`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const BUDGET = 1000 / 60;
@@ -131,7 +131,7 @@ try {
   }
   await browser.close();
 } finally {
-  if (win) spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+  if (win) spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
   else process.kill(-server.pid!, 'SIGTERM');
 }
 console.log(over ? `\n${over} runs had a p95 frame over 25 ms` : '\nevery run kept its p95 frame within 25 ms');
