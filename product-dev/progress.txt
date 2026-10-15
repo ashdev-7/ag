@@ -650,3 +650,65 @@ ANSWERED
 
   5. Next
      Re-run the pages workflow so the live site gets these changes.
+
+
+------------------------------------------------------------------------
+ENTRY 10   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  The visuals are good, but the site still does not explain the meaning
+  of anything: how things work, why they work that way, why they were
+  needed, what came before, what problem they solved, where they are used.
+  It is not for someone learning from scratch. Make the homepage a
+  beginner -> intermediate -> advanced journey; answer people's questions
+  before they know they have them.
+
+ANSWERED
+  1. The homepage is now a course: 17 lessons in three levels, then the
+     labs (the existing interactive examples) for free exploration.
+       Beginner      what a network is, the loss, derivatives, gradient
+                     descent, the chain rule and graphs, backpropagation
+       Intermediate  tensors and broadcasting, why non-linearity
+                     (perceptron and XOR), softmax and cross-entropy, the
+                     training loop and overfitting, forward vs reverse
+                     mode, detach and no_grad
+       Advanced      momentum, adaptive optimizers (AdaGrad -> RMSProp ->
+                     Adam -> AdamW), vanishing and exploding gradients,
+                     ReLU / dead neurons / initialisation, capacity
+
+  2. Every lesson has the same shape: the question in the reader's words;
+     the problem and what came before; the idea; how it works, with the
+     formula; why it works; where it is used today; "Questions you might
+     have now" (2-4 answered in advance); labs with exact steps and a link
+     that opens the lab in the right mode. Next/previous links, and an
+     "I've read this" mark kept in the browser.
+
+  3. Three small interactive figures where a picture explains better: the
+     slope explorer (nudge vs exact derivative), 1-D gradient descent with
+     a learning-rate slider (creep, converge, overshoot, diverge), and the
+     activation functions with their slopes.
+
+  4. Every lab's "About this example" card links back to its lesson.
+
+  5. Accuracy
+     - Engine facts quoted in lessons were checked against the code
+       (initialisation formulas, optimizer rules, cross-entropy gradient
+       (p - y)/4 for the batch of 4, parameter counts: 2 to ~1,200).
+     - Claims about what a lab shows were checked against recorded runs;
+       one unverified lab instruction was replaced with one the recordings
+       support.
+     - History is limited to well-established names and dates (Cauchy
+       1847, Robbins-Monro 1951, Rosenblatt 1958, Minsky-Papert 1969,
+       Linnainmaa 1970, Werbos 1974, Rumelhart-Hinton-Williams 1986, Polyak
+       1964, Nesterov 1983, Hochreiter 1991, LSTM 1997, Glorot 2010, AdaGrad
+       2011, RMSProp 2012, Pascanu 2013, Adam 2014, He 2015, AdamW 2017).
+
+  6. Verified
+     46 web unit tests (4 new: every lab points at a real preset with valid
+     link state, every preset has a lesson, every lesson has sections, FAQ
+     and a lab); smoke 80 checks in Chromium including all 17 lessons;
+     screenshots of the homepage and three lessons inspected.
+
+  7. Not done
+     Lessons are text plus three figures; the labs are linked, not embedded
+     in the lesson page. Embedding them is possible later.
