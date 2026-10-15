@@ -712,3 +712,45 @@ ANSWERED
   7. Not done
      Lessons are text plus three figures; the labs are linked, not embedded
      in the lesson page. Embedding them is possible later.
+
+
+------------------------------------------------------------------------
+ENTRY 11   2026-10-15
+------------------------------------------------------------------------
+ASKED
+  In many places the decision boundary and the gradient norm per layer do
+  not seem to change. A beginner should understand what each component
+  signifies just by looking; if they have to search for something, the
+  product has failed.
+
+ANSWERED
+  1. Checked first: every chart does redraw in all six training labs
+     (pixel comparison at 1 s and 6 s). The real problem was perception:
+     at the old default speed (10 steps per update, ~600 steps/s) Moons
+     finished forming its boundary in under a second, and the gradient
+     chart was a noisy log-scale band. Two labs (vanishing, dead ReLUs)
+     barely change on purpose, which looked like a bug because nothing
+     said so.
+
+  2. Changes
+     - Default speed 2 steps per update, slider labelled slower/faster.
+     - Boundary filmstrip: snapshots at steps 0, 25, 100, 400, 1600.
+     - Gradient norm per layer: "right now" bars per layer (log scale,
+       first layer on top) above a smoothed history.
+     - Live captions under every chart, computed from the numbers drawn:
+       accuracy read off the boundary, loss against the 0.69 coin flip
+       and its trend, gradient ratio first/last layer (vanishing,
+       exploding, healthy, all zero), dead or flat layers, the race leader
+       and laggard. Thresholds measured on the presets (healthy layers
+       spread >= 0.45, vanishing 0.06-0.13 -> cut at 0.2). Each caption
+       was read live on the failure labs and corrected where it overclaimed
+       (e.g. "outputs spread out ... lets the network separate them" on a
+       network that separates nothing).
+     - Definitions in place: 28 glossary terms, underlined, definition on
+       hover or keyboard focus.
+     - Graph boxes show "average ± spread" instead of μ and σ.
+
+  3. Verified
+     51 web unit tests (caption logic tested, including the wording for
+     dead, vanishing and healthy cases); verify 157; smoke 80 in Chromium;
+     captions read live on moons, vanishing, dead ReLUs and rosenbrock.
