@@ -118,6 +118,11 @@ export function StepView(props: {
     if (c.fault) onBanner({ kind: 'error', text: describe(c.fault), error: c.fault });
   }, [gradWhich, onBanner]);
 
+  // the direction matters only in forward mode; elsewhere a new default
+  // direction must not restart the pass (it used to, and on a fresh load that
+  // could land after a linked step was reached and start over at 0)
+  const direction = pass === 'forwardMode' ? tangentSeed : null;
+
   // (re)start the pass whenever the session, pass or direction changes
   useEffect(() => {
     if (!active) return;
@@ -132,15 +137,15 @@ export function StepView(props: {
       let c = b.value;
       if (firstSeek.current > 0) {
         const s = await active.seek(Math.min(firstSeek.current, c.length));
-        // a restart may have superseded this run (setting the default
-        // direction restarts it); leave the linked step for that run
-        if (gen !== generation.current) return;
-        firstSeek.current = 0;
         if (s.ok) c = s.value;
       }
-      if (gen === generation.current) await refresh(active, c, gen);
+      // a restart may have superseded this run; the linked step then stays for
+      // that run, and counts as reached only once a run has shown it
+      if (gen !== generation.current) return;
+      await refresh(active, c, gen);
+      if (gen === generation.current) firstSeek.current = 0;
     })();
-  }, [active, pass, tangentSeed, refresh, onBanner]);
+  }, [active, pass, direction, refresh, onBanner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = useCallback(async (index: number) => {
     if (!active) return;
@@ -151,7 +156,11 @@ export function StepView(props: {
     await refresh(active, r.value, gen);
   }, [active, cursor, refresh, onBanner]);
 
-  useEffect(() => props.onUrl({ pass, i: cursor.index, zoom }), [pass, cursor.index, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a link's step stays in the address until the page has got there; writing
+  // the starting step 0 first would lose it on a quick reload
+  useEffect(() => {
+    if (firstSeek.current === 0) props.onUrl({ pass, i: cursor.index, zoom });
+  }, [pass, cursor.index, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // play: one step per tick until the end
   useEffect(() => {
