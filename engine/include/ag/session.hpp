@@ -63,8 +63,11 @@ struct GridSpec {
     float   x0 = -1, x1 = 1, y0 = -1, y1 = 1;
     int32_t res = 100;               // res * res points, row-major, y descending
     NodeId  node = kNoNode;          // which node to sample; kNoNode = first output
-    int32_t element = 0;             // which element of that node per sample
+    int32_t element = 0;             // which element of that node per sample;
+                                     // kAllElements: every element, element-major
 };
+
+inline constexpr int32_t kAllElements = -1;
 
 // ── lifecycle ────────────────────────────────────────────────────────────────
 

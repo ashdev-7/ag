@@ -525,6 +525,28 @@ static void testMoons() {
     printf("  val accuracy %d / %d\n", correct, total);
     check(correct >= total * 95 / 100, "val accuracy at least 95%");
 
+    // every element in one sweep equals one sweep per element. 7x7 = 49
+    // points leaves a partial last chunk of the evaluation batch
+    {
+        GridSpec g;
+        g.res = 7;
+        g.element = kAllElements;
+        vector<float> all(2 * 49), one(49);
+        Status a = sessionEvalGrid(s.get(), g, all);
+        bool same = a.ok();
+        for (int32_t e = 0; e < 2 && same; ++e) {
+            g.element = e;
+            same = sessionEvalGrid(s.get(), g, one).ok();
+            for (int i = 0; i < 49 && same; ++i) same = all[e * 49 + i] == one[i];
+        }
+        check(same, "eval grid: all elements at once equal each element alone");
+        g.element = kAllElements;
+        vector<float> small(49);
+        check(!sessionEvalGrid(s.get(), g, small).ok(), "eval grid: all elements need room for every element");
+        g.element = -2;
+        check(!sessionEvalGrid(s.get(), g, one).ok(), "eval grid: other negative elements are rejected");
+    }
+
     // the evaluation batch size must not change the answer: batch 1 is the
     // plain mean over rows; 7 and 128 leave a partial last chunk (80 val
     // rows, 320 train rows), 512 is larger than either split

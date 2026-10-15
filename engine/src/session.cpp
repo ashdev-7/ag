@@ -315,10 +315,14 @@ Status sessionEvalGrid(Session* s, const GridSpec& grid, span<float> out) {
     const Shape& ns = p.nodes[node].shape;
     if (ns.rank < 1 || ns.dim[0] != B) return makeError(Code::InvalidArgument, "the sampled node has no batch axis", node);
     int64_t rowElems = numel(ns) / B;
-    if (grid.element < 0 || grid.element >= rowElems) return makeError(Code::InvalidArgument, "element out of range", node);
+    bool all = grid.element == kAllElements;
+    if (!all && (grid.element < 0 || grid.element >= rowElems)) return makeError(Code::InvalidArgument, "element out of range", node);
 
+    // one sweep serves every element: the whole layer of a network at the
+    // cost of one neuron. all elements are written element-major, each a grid
     int32_t count = dim == 2 ? grid.res * grid.res : grid.res;
-    if (static_cast<int32_t>(out.size()) < count) return makeError(Code::InvalidArgument, "grid buffer too small");
+    int64_t need = all ? int64_t(count) * rowElems : count;
+    if (int64_t(out.size()) < need) return makeError(Code::InvalidArgument, "grid buffer too small");
 
     vector<float> x(size_t(B) * dim);
     float dx = (grid.x1 - grid.x0) / grid.res, dy = (grid.y1 - grid.y0) / grid.res;
@@ -336,7 +340,13 @@ Status sessionEvalGrid(Session* s, const GridSpec& grid, span<float> out) {
         AG_TRY(execBegin(&s->eval, PassKind::Forward));
         AG_TRY(execRun(&s->eval));
         const float* v = s->eval.arena.data() + p.nodes[node].valueOff;
-        for (int32_t r = 0; r < B && c * B + r < count; ++r) out[c * B + r] = v[r * rowElems + grid.element];
+        for (int32_t r = 0; r < B && c * B + r < count; ++r) {
+            if (!all) {
+                out[c * B + r] = v[r * rowElems + grid.element];
+                continue;
+            }
+            for (int64_t e = 0; e < rowElems; ++e) out[e * count + c * B + r] = v[r * rowElems + e];
+        }
     }
     return {};
 }
