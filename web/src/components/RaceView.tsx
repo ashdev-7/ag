@@ -11,8 +11,7 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
-import { GuideCard, Help } from './Guide.tsx';
-import { OPTIM_HELP, RACE_GUIDES, RACE_HELP } from '../content/help.tsx';
+import { OPTIM_HELP, RACE_GUIDES, RACE_HELP, RACE_SCREEN } from '../content/help.tsx';
 import { raceStory } from '../views/narrate.ts';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
@@ -103,13 +102,16 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
 
   return (
     <div className="race-view">
-      <GuideCard title={preset.title} presetId={preset.id} guide={RACE_GUIDES[preset.id]}>
-        {RACE_GUIDES[preset.id] && <p>The loss: {RACE_GUIDES[preset.id].formula}</p>}
-      </GuideCard>
+      <section className="intro">
+        <h2>{preset.title}: race four optimizers downhill</h2>
+        <p>{RACE_SCREEN}</p>
+        {RACE_GUIDES[preset.id] && <p>This landscape: {RACE_GUIDES[preset.id].formula}. {RACE_GUIDES[preset.id].idea}</p>}
+        {RACE_GUIDES[preset.id] && <ol className="do-this"><li>Press <b>Race</b>.</li>{RACE_GUIDES[preset.id].watch.map((w, k) => <li key={k}>{w}</li>)}<li>Change a learning rate (<b>lr</b>, the step size), press Reset, and race again.</li></ol>}
+      </section>
       <div className="toolbar">
         <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
-        <span className="muted">Each optimizer starts at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}). Change a learning rate and reset to try again.</span>
+        <span className="muted">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
       </div>
       <div className="optim-row">
         {optims.map((o, i) => (
@@ -117,27 +119,62 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
             step={racers[i]?.steps.at(-1) ?? 0} loss={racers[i]?.loss.at(-1)} />
         ))}
       </div>
-      {[...new Set(optims.map((o) => o.kind))].map((k) => <Help key={k}>{OPTIM_HELP[k]}</Help>)}
+      {[...new Set(optims.map((o) => o.kind))].map((k) => <p key={k} className="explain-line">{OPTIM_HELP[k]}</p>)}
       <div className="race-grid">
         <section className="panel">
-          <h4>Loss surface <span className="muted">x horizontal, y vertical</span></h4>
-          <Help>{RACE_HELP.surface}</Help>
+          <h4>The landscape (x across, y up)</h4>
+          <p className="explain">{RACE_HELP.surface}</p>
           <div className="square big">
             <Canvas height={460} draw={(ctx, w, h) => {
               drawField(ctx, w, h, surface.data, surface.res, surfaceScale(lo, hi));
               drawPaths(ctx, w, h, racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], points: r.path })), race.domain);
+              drawMarkers(ctx, w, h, race.domain, racers[0].path[0], RACE_GUIDES[preset.id]?.goals ?? []);
             }} />
           </div>
           <Legend items={racers.map((r, i) => ({ label: `${r.optim.kind}${r.done === 'diverged' ? ' (diverged)' : ''}`, color: PALETTE[i] }))} />
         </section>
         <section className="panel">
-          <h4>Loss over steps</h4>
-          <Help>{RACE_HELP.loss}</Help>
+          <h4>How low each one has got (lower is better)</h4>
+          <p className="explain">{RACE_HELP.loss}</p>
           <p className="story">{raceStory(racers.map((r) => ({ name: r.optim.kind, loss: r.loss, diverged: r.done === 'diverged' })))}</p>
           <Canvas height={220} draw={(ctx, w, h) => drawLines(ctx, w, h,
-            racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], x: r.steps, y: r.loss })), { logY: true })} />
+            racers.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i], x: r.steps, y: r.loss })), { logY: true, yLabel: 'loss (height)', xLabel: 'steps →' })} />
         </section>
       </div>
     </div>
   );
 }
+
+/** ○ at the start and ★ at each lowest point, labelled, so the goal is never a guess. */
+function drawMarkers(ctx: CanvasRenderingContext2D, w: number, h: number, d: { x0: number; x1: number; y0: number; y1: number },
+  start: [number, number], goals: [number, number][]) {
+  const X = (x: number) => ((x - d.x0) / (d.x1 - d.x0)) * w, Y = (y: number) => (1 - (y - d.y0) / (d.y1 - d.y0)) * h;
+  const label = (text: string, x: number, y: number) => {
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeText(text, x + 9, y + 4);
+    ctx.fillStyle = '#1d1d1f';
+    ctx.fillText(text, x + 9, y + 4);
+  };
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#1d1d1f';
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(X(start[0]), Y(start[1]), 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  label('start', X(start[0]), Y(start[1]));
+  for (const [gx, gy] of goals) {
+    ctx.font = '18px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeText('★', X(gx), Y(gy) + 6);
+    ctx.fillStyle = '#c8a400';
+    ctx.fillText('★', X(gx), Y(gy) + 6);
+    ctx.textAlign = 'left';
+    label('lowest point', X(gx) + 2, Y(gy));
+  }
+}
+

@@ -144,8 +144,17 @@ export function drawHistogram(ctx: CanvasRenderingContext2D, w: number, h: numbe
 export interface Series { label: string; color: string; x: number[]; y: (number | null)[]; dash?: boolean }
 
 /** Line chart with optional log y. Gaps (null, non-finite) break the line. */
-export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, series: Series[], opts: { logY?: boolean; yLabel?: string } = {}) {
-  const pad = { l: 58, r: 8, t: 8, b: 18 };
+export interface LineOpts {
+  logY?: boolean;
+  /** Axis names, written on the chart: a reader should not have to guess them. */
+  xLabel?: string;
+  yLabel?: string;
+  /** Labelled horizontal reference lines, e.g. the loss of random guessing. */
+  refs?: { y: number; label: string }[];
+}
+
+export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, series: Series[], opts: LineOpts = {}) {
+  const pad = { l: 70, r: 8, t: 8, b: 20 };
   const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
   // a log scale only when every value is above zero: a loss that goes
   // negative (the saddle's minimum is −1) would otherwise be pinned at the floor
@@ -159,6 +168,8 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
       x0 = Math.min(x0, x); x1 = Math.max(x1, x);
       y0 = Math.min(y0, ty(y)); y1 = Math.max(y1, ty(y));
     });
+  // reference lines stay in view
+  if (Number.isFinite(x0)) for (const r of opts.refs ?? []) if (!logY || r.y > 0) { y0 = Math.min(y0, ty(r.y)); y1 = Math.max(y1, ty(r.y)); }
   ctx.strokeStyle = '#ddd';
   ctx.strokeRect(pad.l, pad.t, pw, ph);
   if (!Number.isFinite(x0)) return;
@@ -184,7 +195,30 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
   ctx.textAlign = 'right';
   ctx.fillText(String(Math.round(x1)), pad.l + pw, h - pad.b + 4);
   ctx.textAlign = 'center';
-  ctx.fillText(logY ? 'log scale' : 'linear scale', pad.l + pw / 2, h - pad.b + 4);
+  ctx.fillText(opts.xLabel ?? 'training steps →', pad.l + pw / 2, h - pad.b + 4);
+  if (opts.yLabel) {
+    ctx.save();
+    ctx.translate(10, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${opts.yLabel}${logY ? ' (log scale)' : ''}`, 0, 0);
+    ctx.restore();
+  }
+  for (const r of opts.refs ?? []) {
+    if (logY && r.y <= 0) continue;
+    const yy = Y(r.y);
+    ctx.strokeStyle = '#999';
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#555';
+    ctx.textAlign = 'right';
+    // above the line, or below it when the line is near the top
+    const above = yy - pad.t > 14;
+    ctx.textBaseline = above ? 'bottom' : 'top';
+    ctx.fillText(r.label, pad.l + pw - 4, above ? yy - 2 : yy + 2);
+    ctx.fillStyle = '#777';
+  }
 
   for (const s of series) {
     ctx.strokeStyle = s.color;

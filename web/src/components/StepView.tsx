@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import type { Cursor, EngineError, OptimConfig, PassKind, ScalarView, Stats, Step, TangentSeed } from '../engine/protocol.ts';
-import { GRAPH_LEGEND, MODES_HELP, OPTIM_HELP, PASS_HELP, STEP_GUIDES, ZOOM_HELP } from '../content/help.tsx';
+import { GRAPH_LEGEND, MODES_HELP, OPTIM_HELP, STEP_GUIDES } from '../content/help.tsx';
+import { MODE_LONG, MODE_SHORT, STEP_SCREEN, ZOOM_SHORT } from '../content/step-text.tsx';
 import type { Preset } from '../graph/presets.ts';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import { divergingScale, drawTensor, fmt, maxAbs } from '../views/draw.ts';
@@ -16,7 +17,6 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
-import { GuideCard, Help } from './Guide.tsx';
 
 const PASSES: { pass: PassKind; label: string; hint: string }[] = [
   { pass: 'forward', label: 'Forward', hint: 'values only' },
@@ -264,7 +264,12 @@ export function StepView(props: {
 
   return (
     <div className="step-view">
-      <GuideCard title={preset.title} presetId={preset.id} guide={STEP_GUIDES[preset.id]} />
+      <section className="intro">
+        <h2>{preset.title}</h2>
+        <p>{STEP_SCREEN}</p>
+        {STEP_GUIDES[preset.id] && <p className="intro-lesson">{STEP_GUIDES[preset.id].idea}</p>}
+        {STEP_GUIDES[preset.id] && <ol className="do-this">{STEP_GUIDES[preset.id].watch.map((w, i) => <li key={i}>{w}</li>)}</ol>}
+      </section>
       <div className="toolbar">
         <div className="segmented" role="tablist" aria-label="Pass">
           {PASSES.map((p) => (
@@ -291,11 +296,17 @@ export function StepView(props: {
         )}
         <button className="ghost" onClick={compareModes} disabled={modes === 'running'}>Reverse vs forward mode</button>
       </div>
-      <div className="mode-help">
-        <p><b>{PASS_HELP[pass].title}.</b> {PASS_HELP[pass].body}</p>
-        <p>{ZOOM_HELP[zoom]}</p>
+      <div className="mode-guide">
+        <ul>
+          {PASSES.map((p) => (
+            <li key={p.pass} className={pass === p.pass ? 'on' : ''}><b>{MODE_SHORT[p.pass].name}:</b> {MODE_SHORT[p.pass].line}</li>
+          ))}
+        </ul>
+        <p className="mode-long"><b>{MODE_SHORT[pass].name}, step by step.</b> {MODE_LONG(preset.config.optim.lr)[pass]}</p>
+        <p><b>{ZOOM_SHORT.tensor.name}:</b> {ZOOM_SHORT.tensor.line}. <b>{ZOOM_SHORT.scalar.name}:</b> {ZOOM_SHORT.scalar.line}. <b>Reverse vs forward mode</b> (button): computes the gradients both ways and checks they agree.</p>
       </div>
 
+      <p className="explain-line graph-key">{GRAPH_LEGEND}</p>
       <div className="step-main">
         <div className="graph-wrap">
           <GraphCanvas spec={spec} shapes={shapes} highlight={highlight} values={values} grads={grads}
@@ -324,7 +335,6 @@ export function StepView(props: {
         </aside>
       </div>
 
-      <Help>{GRAPH_LEGEND}</Help>
       <div className="transport">
         <button onClick={() => go(0)} title="Back to the start (Home)" aria-label="Back to the start">⏮</button>
         <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} title="One step back (←)" aria-label="One step back">◀</button>
@@ -406,7 +416,7 @@ function StepExplain(props: {
           <h3>Backward · {name(step.nodeId)} → {name(target)}</h3>
           <p><b>{name(step.nodeId)}</b> passes gradient back to its input <b>{name(target)}</b>. Chain rule: the gradient at {name(step.nodeId)} times how much {name(step.nodeId)} moves when {name(target)} moves.</p>
           <p><code>∂L/∂{name(target)} += ∂L/∂{name(step.nodeId)} × ∂{name(step.nodeId)}/∂{name(target)}</code></p>
-          <p>Local derivative <code>∂{name(step.nodeId)}/∂{name(target)}</code> = <code>{local}</code></p>
+          <p>How much {name(step.nodeId)} moves when {name(target)} moves (its local slope, <code>∂{name(step.nodeId)}/∂{name(target)}</code>): <code>{local}</code></p>
           {localValue !== undefined && (
             <p className="big">{fmt(g(step.nodeId))} × {fmt(localValue)} = {fmt(g(step.nodeId) * localValue)}</p>
           )}

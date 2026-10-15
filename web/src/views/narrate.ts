@@ -103,24 +103,35 @@ export function activationStory(layers: { label: string; fracZero: number; std: 
   return 'Outputs vary widely from point to point: the units are active and respond to where a point is.';
 }
 
-/** Who is ahead in the optimizer race, and who is stuck. */
+/** Who is ahead in the optimizer race, who is stuck, and who arrived first. */
 export function raceStory(racers: { name: string; loss: number[]; diverged: boolean }[]): string {
-  const live = racers.filter((r) => r.loss.length > 0 && !r.diverged);
   if (!racers.some((r) => r.loss.length)) return 'Press Race: all four start from the same point and step downhill at the same time.';
+  const live = racers.filter((r) => r.loss.length > 0 && !r.diverged);
   const parts: string[] = [];
-  const sorted = [...live].sort((a, b) => a.loss.at(-1)! - b.loss.at(-1)!);
-  if (sorted.length) parts.push(`Lowest loss so far: ${sorted[0].name} (${fmt(sorted[0].loss.at(-1)!)}).`);
-  if (sorted.length > 1) parts.push(`Furthest behind: ${sorted.at(-1)!.name} (${fmt(sorted.at(-1)!.loss.at(-1)!)}).`);
-  // stuck: the loss moved by under 1% over the last 50 recorded steps, while still above the leader
-  const stuck = sorted.slice(1).filter((r) => {
-    const n = r.loss.length;
-    if (n < 60) return false;
-    const before = r.loss[n - 51], now = r.loss[n - 1];
-    return Math.abs(now - before) < 0.01 * Math.max(Math.abs(before), 1e-9) && now > sorted[0].loss.at(-1)! + 1e-3;
-  });
-  if (stuck.length) parts.push(`${stuck.map((r) => r.name).join(' and ')} ${stuck.length > 1 ? 'have' : 'has'} almost stopped improving: on a flat stretch, small gradients mean small steps.`);
+  const last = (r: { loss: number[] }) => r.loss[r.loss.length - 1];
+  const sorted = [...live].sort((a, b) => last(a) - last(b));
+  if (sorted.length) {
+    const best = last(sorted[0]), start = Math.max(...live.map((r) => r.loss[0]));
+    const near = (v: number) => v - best <= 0.01 * Math.max(start - best, 1e-9);
+    const arrived = live.filter((r) => near(last(r)));
+    if (arrived.length === live.length && live.length > 1) {
+      // everyone is at the bottom: who reached it first?
+      const firstAt = (r: { loss: number[] }) => r.loss.findIndex(near);
+      const first = [...live].sort((a, b) => firstAt(a) - firstAt(b))[0];
+      parts.push(`All of them have reached the bottom (loss ${fmt(best)}). The first to get there was ${first.name}; compare where each line drops in the chart.`);
+    } else {
+      parts.push(`Lowest so far: ${sorted[0].name} (loss ${fmt(best)}).`);
+      const behind = sorted.at(-1)!;
+      if (sorted.length > 1 && !near(last(behind))) parts.push(`Furthest behind: ${behind.name} (loss ${fmt(last(behind))}).`);
+      // stuck: moved under 1% over the last 50 recorded steps while still well above the leader
+      const stuck = sorted.slice(1).filter((r) => {
+        const n = r.loss.length;
+        return n >= 60 && Math.abs(last(r) - r.loss[n - 51]) < 0.01 * Math.max(Math.abs(r.loss[n - 51]), 1e-9) && !near(last(r));
+      });
+      if (stuck.length) parts.push(`${stuck.map((r) => r.name).join(' and ')} ${stuck.length > 1 ? 'have' : 'has'} almost stopped moving: on flat ground the slope is small, so the steps are small.`);
+    }
+  }
   const div = racers.filter((r) => r.diverged);
-  if (div.length) parts.push(`${div.map((r) => r.name).join(' and ')} diverged: the steps were too large and the loss blew up.`);
+  if (div.length) parts.push(`${div.map((r) => r.name).join(' and ')} diverged: its steps were too large and the numbers blew up. Try a smaller lr.`);
   return parts.join(' ');
 }
-

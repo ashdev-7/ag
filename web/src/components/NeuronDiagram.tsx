@@ -89,7 +89,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
     if (!c || !state) return;
     const draw = () => {
       const { ctx, w, h } = fit(c);
-      const top = 22, bottom = 8, cols = sizes.length;
+      const top = 22, bottom = 26, cols = sizes.length;
       // room on the left for x₁/x₂ and on the right for the class names
       const colX = (k: number) => 24 + (k * (w - 24 - 64 - 34)) / Math.max(1, cols - 1);
       const maxN = Math.max(...sizes);
@@ -139,6 +139,17 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
       ctx.font = '11px system-ui, sans-serif';
       ctx.textAlign = 'center';
       titles.forEach((t, k) => ctx.fillText(t, colX(k) + s / 2, 12));
+      // what each column does, under it
+      ctx.fillStyle = '#2f2f35';
+      ctx.font = '11.5px system-ui, sans-serif';
+      sizes.forEach((_, k) => {
+        const what = k === 0 ? 'the dot’s position' : k === cols - 1 ? 'the answer' : k === 1 ? 'learn simple shapes' : 'combine them';
+        // keep the caption inside the canvas at both edges
+        const half = ctx.measureText(what).width / 2;
+        ctx.fillText(what, Math.min(w - half - 2, Math.max(half + 2, colX(k) + s / 2)), h - 8);
+      });
+      ctx.fillStyle = '#6b6b75';
+      ctx.font = '11px system-ui, sans-serif';
       // name the inputs and outputs
       ctx.textAlign = 'left';
       boxes.filter((b) => b.layer === 0).forEach((b) => ctx.fillText(b.index === 0 ? 'x₁' : 'x₂', b.x - 18, b.y + b.s / 2 + 4));
@@ -162,7 +173,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
       const bias = state.biases[b.layer - 1][b.index];
       const picture = normalised(acts[b.layer - 1], state.grids[b.layer - 1][b.index]);
       return setHover(last
-        ? `Output neuron “${b.index === 0 ? 'blue' : 'orange'}”: the network’s probability that a point is ${b.index === 0 ? 'blue' : 'orange'}, at every point of the plane (orange high, blue low). Bias ${fmt(bias)}.`
+        ? `Answer neuron “${b.index === 0 ? 'blue' : 'orange'}”: how sure the network is that a dot is ${b.index === 0 ? 'blue' : 'orange'}, for every position on the plane (orange = sure, blue = not). Bias ${fmt(bias)}.`
         : `${titles[b.layer]}, neuron ${b.index + 1}: it adds up its weighted inputs plus a bias of ${fmt(bias)}, then applies ${acts[b.layer - 1]}. Its picture is its output at every point of the plane (orange high, blue low): the feature it has learned to detect.`, picture);
     }
     // nearest line within 4 pixels

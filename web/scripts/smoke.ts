@@ -132,7 +132,7 @@ try {
         explained = /neuron \d+: it adds up/.test((await page.locator('.neurons .story').textContent()) ?? '');
       }
       check(explained, `${p.id}: hovering a neuron explains it`);
-      await page.getByRole('button', { name: 'Operations' }).click();
+      await page.getByRole('button', { name: 'Calculations' }).click();
       await page.waitForSelector('.react-flow__node');
       await page.locator('.react-flow__node', { hasText: 'W1' }).first().click();
       await sleep(500);

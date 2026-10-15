@@ -3,7 +3,7 @@
 // code does (engine/src, src/graph/presets.ts); if one changes, change both.
 
 import type { ReactNode } from 'react';
-import type { OptimConfig, PassKind } from '../engine/protocol.ts';
+import type { OptimConfig } from '../engine/protocol.ts';
 import { Term } from './glossary.tsx';
 
 // ── the three kinds of lab ─────────────────────────────────────────────────
@@ -15,30 +15,6 @@ export const MODE_INTRO: Record<'step' | 'train' | 'race', ReactNode> = {
 };
 
 // ── stepping: passes and zoom ───────────────────────────────────────────────
-
-export const PASS_HELP: Record<PassKind, { title: string; body: ReactNode }> = {
-  forward: {
-    title: 'Forward',
-    body: <>Computes every value, inputs first, ending with the loss. No gradients. Each step fills in one box.</>,
-  },
-  reverse: {
-    title: 'Backward (reverse mode)',
-    body: <>The forward pass, then the <Term t="gradient" /> of the loss for every box. It starts at the loss with <code>∂L/∂L = 1</code> and walks back one arrow per step; each step multiplies the gradient arriving at a box by that box’s <Term t="local derivative" /> and adds the result to the input’s gradient (the <Term t="chain rule" />). One pass gives every gradient.</>,
-  },
-  train: {
-    title: 'Train step',
-    body: <>One full iteration of a training loop: take the next <Term t="batch" /> of data, run forward and backward, then let the <Term t="optimizer" /> update every <Term t="parameter" /> (purple boxes) using its gradient. Stepping back undoes the update; <i>Next train step</i> keeps it and starts another. Repeat thousands of times and you have training.</>,
-  },
-  forwardMode: {
-    title: 'Forward mode',
-    body: <>The other way to get derivatives. Pick one input number (the <i>direction</i>), give it a “nudge” of 1 and every other input 0, and carry that nudge forward through the graph alongside the values. What reaches the loss is ∂L/∂(that one input). One pass per input number, so it is cheap for few inputs and expensive for many; reverse mode is the opposite, which is why training uses reverse mode.</>,
-  },
-};
-
-export const ZOOM_HELP: Record<'tensor' | 'scalar', ReactNode> = {
-  tensor: <><b>Tensors:</b> each box is a whole array (a <Term t="tensor" />, its shape in brackets) and shows the average of its numbers ± their spread. Click a box to see every number.</>,
-  scalar: <><b>Single numbers:</b> every array is opened up so each box holds one number. A matrix multiply becomes its individual multiplies and adds, so you can follow one number all the way.</>,
-};
 
 export const GRAPH_LEGEND: ReactNode = (
   <>
@@ -99,80 +75,45 @@ export const STEP_GUIDES: Record<string, Guide> = {
 
 // ── training ────────────────────────────────────────────────────────────────
 
-export const TRAIN_SETUP: ReactNode = (
-  <>The data are 2-d points in two classes (blue and orange): 80% are used for training and 20% are held out to check the network on points it never trained on. The network ends in two numbers per point, one per class; softmax turns them into probabilities. Each training step takes the next batch of points, runs forward and backward, and updates every weight once.</>
-);
-
-export const TRAIN_GUIDES: Record<string, Guide> = {
-  moons: {
-    idea: <>Two interleaved half circles. A straight line cannot separate them; two tanh layers of 8 units bend the boundary around them.</>,
-    watch: [<>Press Run: the boundary starts almost straight, then curls between the moons as the loss drops.</>, <>Tick <i>compare two optimizers</i> to train SGD and Adam from the same starting weights.</>],
-  },
-  circles: {
-    idea: <>One class inside a ring of the other. ReLU units each cut the plane with a straight line; together they enclose the centre.</>,
-    watch: [<>The boundary closes into a rough polygon: each corner is where one ReLU switches on.</>],
-  },
-  spirals: {
-    idea: <>Two spiral arms wound around each other, the hardest of the four. It needs a wider network (two ReLU layers of 32) and more steps.</>,
-    watch: [<>The loss can sit flat for a while before falling: the network is finding the arms one turn at a time.</>],
-  },
-  xor: {
-    idea: <>Points in opposite corners share a class. A single neuron cannot do this (no straight line works); one hidden layer of 8 tanh units can.</>,
-    watch: [<>Trained with momentum: the loss may overshoot and wobble before it settles.</>],
-  },
-  vanishing: {
-    idea: <>Six sigmoid layers trained with plain SGD. A sigmoid’s slope is at most 0.25, and the backward pass multiplies by one slope per layer, so the gradient shrinks layer by layer on its way back.</>,
-    watch: [<>In <i>Gradient norm per layer</i>, the first layer (dark) sits about four orders of magnitude below the output (orange).</>, <>The loss stays near 0.69, a coin flip, for thousands of steps: the early layers hardly learn.</>],
-  },
-  'dead-relu': {
-    idea: <>The ReLU biases start at −1.5, so for most inputs the sum before the ReLU is negative and the output is exactly 0. A ReLU at 0 has slope 0, so no gradient flows back through it and it cannot recover.</>,
-    watch: [<>In <i>Activations per layer</i>, both hidden layers are 100% zero: every unit is dead.</>, <>So every weight gradient is exactly 0, nothing but the output bias can learn, and the loss stays at 0.69, a coin flip.</>, <>Compare with <i>Circles</i>: the same data and network with ordinary starting weights.</>],
-  },
-};
-
-export const PANEL_HELP = {
-  neurons: <>The classic picture of a network. Each square is a <b>neuron</b>, in columns: the 2 inputs (a point’s x₁ and x₂), each hidden <Term t="layer" />, and one output per class. Each line is a <Term t="weight" />: <b style={{ color: '#e66101' }}>orange</b> positive, <b style={{ color: '#2166ac' }}>blue</b> negative, thicker means larger; watch them change as it trains. Inside each square is what that neuron outputs at every point of the plane: hidden neurons each learn a simple feature (one side of a line), and later layers combine them into the curved boundary.</>,
-  network: <>The same network as the operations the engine actually runs, left to right: data in, matrix multiplies and additions, activations, <Term t="loss" /> out. Purple boxes are <Term t="parameter">parameters</Term> being learned. Each box shows the average and spread of its numbers (blue) and of its <Term t="gradient">gradients</Term> (orange). Thicker arrows carry bigger gradients back. Click a purple box to look inside.</>,
-  boundary: <>Every point of the square is coloured by what the network would answer there: orange for “orange class”, blue for “blue class”, pale where it is unsure. The <Term t="decision boundary" /> is the pale line between. Dots are the real data, coloured by their true class. Good training means each dot sits on a background of its own colour.</>,
-  film: <>The same picture at earlier moments, so you can see how the boundary formed even if you missed it.</>,
-  loss: <>How wrong the network is (<Term t="cross-entropy" />): 0 is perfect, 0.69 is 50/50 guessing. <b>Solid:</b> the <Term t="batch" /> just trained on, jumpy because every batch differs. <b>Dashed:</b> the <Term t="held-out" /> points, never trained on. <Term t="log scale">Log scale</Term>.</>,
-  gradNow: <>How hard each layer is being pushed to change right now: the <Term t="gradient norm" /> of its weights, first layer at the top. Longer bar, bigger push. Bars use a <Term t="log scale" />: each mark is 10×.</>,
-  gradNorm: <>The same sizes over time, smoothed. A layer whose line sits far below the others is barely learning.</>,
-  acts: <>What each layer outputs for the current batch, as a <Term t="histogram" />: lowest value on the left, highest on the right. If almost everything piles up at exactly 0, those are <Term t="dead unit">dead units</Term>.</>,
-  inspect: <>The selected array as coloured cells (orange positive, blue negative, white near zero): its values, its gradients, and the <Term t="optimizer" />’s memory for it (running averages of past gradients, used by <Term t="momentum" /> and Adam).</>,
-  controls: <><b>Run</b> trains continuously; <b>Step</b> does exactly one training <Term t="step" />; <b>Reset</b> starts over from the same initial weights. <b>Speed</b> sets how many training steps happen between screen updates. <b>lr</b> is the <Term t="learning rate" />; <b>clip</b> is <Term t="clip">gradient clipping</Term>.</>,
-};
-
 export const OPTIM_HELP: Record<OptimConfig['kind'], ReactNode> = {
-  sgd: <><b>SGD:</b> step straight down the gradient, <code>w ← w − lr·g</code>.</>,
-  momentum: <><b>Momentum:</b> keep a running velocity <code>v ← 0.9·v + g</code> and step along it, <code>w ← w − lr·v</code>. Speeds up along consistent directions, damps zig-zags.</>,
-  nesterov: <><b>Nesterov:</b> momentum that looks one step ahead, <code>w ← w − lr·(g + 0.9·v)</code>; usually overshoots less.</>,
-  rmsprop: <><b>RMSProp:</b> divide each step by a running average of recent gradient sizes, <code>w ← w − lr·g / √(avg g²)</code>, so steep and shallow directions move at similar speeds.</>,
-  adam: <><b>Adam:</b> momentum and RMSProp together: a running average of gradients divided by the square root of a running average of squared gradients, both corrected for starting at zero.</>,
-  adamw: <><b>AdamW:</b> Adam plus weight decay applied directly to the weights. Weight decay is 0 here, so it behaves like Adam.</>,
+  sgd: <><b>sgd</b> (plain gradient descent): every step, move each weight against its correction by a fixed amount, <code>w ← w − lr × gradient</code>. Simple, but slow on flat ground and jittery in narrow valleys.</>,
+  momentum: <><b>momentum</b>: like a ball rolling downhill, it keeps part of its previous direction. Steps that keep pointing the same way build up speed; steps that flip back and forth cancel out.</>,
+  nesterov: <><b>nesterov</b>: momentum that looks one step ahead before correcting, so it overshoots less.</>,
+  rmsprop: <><b>rmsprop</b>: gives every weight its own step size. A weight whose corrections have recently been large takes smaller steps, one whose corrections are tiny takes bigger steps, so all of them move at a similar pace.</>,
+  adam: <><b>adam</b>: momentum and rmsprop combined: it keeps a running direction like momentum and an own step size per weight like rmsprop. The most popular default, because it works well without much tuning.</>,
+  adamw: <><b>adamw</b>: adam plus a gentle pull of every weight toward zero (“weight decay”). That pull is off here, so it behaves exactly like adam.</>,
 };
 
 // ── the race ────────────────────────────────────────────────────────────────
 
-export const RACE_GUIDES: Record<string, Guide & { formula: ReactNode }> = {
+export const RACE_GUIDES: Record<string, Guide & { formula: ReactNode; goals: [number, number][] }> = {
   rosenbrock: {
     formula: <code>f(x, y) = (1 − x)² + 100·(y − x²)²</code>,
-    idea: <>A long, curved, flat-bottomed valley. The minimum is at (1, 1), where <code>f = 0</code>. Reaching the valley is easy; following its curve is slow, because the gradient points mostly across the valley, not along it.</>,
-    watch: [<>SGD barely moves along the valley floor; momentum and Adam build speed along it.</>],
+    goals: [[1, 1]],
+    idea: <>A long, curved valley with a nearly flat floor; its lowest point is at (1, 1). Getting into the valley is easy. Following its gentle floor to the lowest point is slow, because the downhill direction points mostly at the steep walls, not along the floor.</>,
+    watch: [<><b>sgd</b> drops into the valley and then crawls along the floor; <b>momentum</b> and <b>adam</b> build up speed along it and get much further.</>],
   },
   saddle: {
     formula: <code>f(x, y) = x² − y² + y⁴/4</code>,
-    idea: <>A saddle at (0, 0): downhill in y, uphill in x. The real minima are at (0, ±1.41), where <code>f = −1</code>. Everyone starts with y almost exactly 0, so the push to escape the saddle is tiny at first.</>,
-    watch: [<>Plain SGD drifts to the saddle and lingers; methods that rescale the gradient (RMSProp, Adam) amplify the tiny y-gradient and escape fast.</>],
+    goals: [[0, Math.SQRT2], [0, -Math.SQRT2]],
+    idea: <>A saddle, like a mountain pass: at the centre (0, 0) the ground rises to the left and right but falls toward the top and bottom of the picture. The two lowest points are above and below the centre. The race starts almost exactly on the pass’s centre line, where the sideways slope is tiny, so it is hard to notice the way down.</>,
+    watch: [<><b>sgd</b> walks to the centre of the pass and lingers there (the flat stretch in its loss line) before it finally slides off. <b>rmsprop</b> and <b>adam</b> scale up small slopes, so they turn off toward a lowest point almost at once.</>],
   },
   bowl: {
     formula: <code>f(x, y) = 0.5·x² + 10·y²</code>,
-    idea: <>A bowl 20 times steeper in y than in x, minimum at (0, 0). A step size large enough to make progress in x overshoots in y.</>,
-    watch: [<>SGD zig-zags across the narrow direction; momentum averages the zig-zag out; RMSProp and Adam take similar-sized steps in both directions.</>],
+    goals: [[0, 0]],
+    idea: <>A bowl that is 20 times steeper up-and-down than left-to-right, with its lowest point in the middle. A step big enough to make progress left-to-right overshoots in the steep direction.</>,
+    watch: [<><b>sgd</b> zig-zags up and down across the bowl; <b>momentum</b> averages the zig-zags out; <b>rmsprop</b> and <b>adam</b> take similar-sized steps in both directions.</>],
   },
 };
 
+export const RACE_SCREEN: ReactNode = (
+  <>
+    Training a network means walking downhill on its <b>loss</b> (how wrong it is). A real network has thousands of adjustable numbers, so its “hills” cannot be drawn; here there are just two, <b>x</b> and <b>y</b>, so the whole landscape fits in one picture. Darker means lower loss. All four <b>optimizers</b> (rules for choosing each step downhill) start at the same point, marked ○, and try to reach the lowest point, marked ★. Each coloured line is the path one of them takes.
+  </>
+);
+
 export const RACE_HELP = {
-  surface: <>The loss <code>f(x, y)</code> computed at 100 × 100 points: darker is lower (log scale, so the valley floor stays visible). Each line is one optimizer’s path: the point (x, y) after every step. All four start at the same point; each runs at most 3000 steps.</>,
-  loss: <>The loss at each optimizer’s current point. The fastest to the bottom wins. A racer marked “diverged” stepped somewhere the loss is not a finite number, and was stopped.</>,
+  surface: <>The landscape: for every point (x, y), how high the loss is. Darker = lower, lighter = higher. Each coloured line is one optimizer’s path, one dot per step; each runs for at most 3,000 steps.</>,
+  loss: <>Each optimizer’s height (loss) as it goes. Lower is better; the line that drops fastest is winning. An optimizer that takes steps so large that the numbers blow up is stopped and marked “diverged”.</>,
 };

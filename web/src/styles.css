@@ -247,3 +247,27 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .neurons canvas { cursor: crosshair; }
 .neuron-hover { display: flex; gap: 10px; align-items: center; min-height: 40px; }
 .neuron-preview { flex: none; width: 84px !important; border: 1px solid #ccc; }
+
+/* explanations in plain view */
+.intro { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 6px 16px 10px; margin-bottom: 12px; line-height: 1.55; max-width: 1100px; }
+.intro h2 { font-size: 19px; margin: 8px 0 4px; }
+.intro p { margin: 6px 0; }
+.intro-lesson { font-weight: 500; }
+.do-this { margin: 6px 0 2px; padding-left: 22px; }
+.do-this li { margin: 2px 0; }
+.explain-line { margin: 2px 0 8px; line-height: 1.5; max-width: 1100px; color: #2f2f35; }
+.panel .explain { font-size: 13.5px; line-height: 1.55; color: #2f2f35; margin: 4px 0 8px; }
+.panel h4 { font-size: 14.5px; }
+.story b:first-child { color: var(--accent); }
+.key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; margin: 6px 0; color: #2f2f35; }
+.key i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; vertical-align: -2px; }
+.key i.dot { border-radius: 50%; background: linear-gradient(90deg, #2166ac 50%, #e66101 50%); border: 1.5px solid #fff; box-shadow: 0 0 0 1px #bbb; }
+.graph-panel .small-seg { margin: 0 0 4px; }
+.mode-guide { max-width: 1100px; margin: 0 0 8px; line-height: 1.5; color: #2f2f35; }
+.mode-guide ul { list-style: none; padding: 0; margin: 0 0 4px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mode-guide li { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 13px; background: var(--panel); }
+.mode-guide li.on { border-color: var(--accent); background: #f6f4fa; }
+.mode-guide p { margin: 4px 0; }
+.mode-long { background: #f6f4fa; border-radius: 6px; padding: 6px 10px; }
+.graph-key { font-size: 13px; }
+@media (max-width: 860px) { .mode-guide ul { grid-template-columns: 1fr 1fr; } }

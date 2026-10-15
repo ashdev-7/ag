@@ -16,8 +16,8 @@ import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
 import { fetchNeurons, NeuronDiagram } from './NeuronDiagram.tsx';
 import type { NeuronState } from './NeuronDiagram.tsx';
-import { GuideCard, Help } from './Guide.tsx';
-import { OPTIM_HELP, PANEL_HELP, TRAIN_GUIDES, TRAIN_SETUP } from '../content/help.tsx';
+import { OPTIM_HELP } from '../content/help.tsx';
+import { CONTROLS, DO_THIS, HOW_TRAINING_WORKS, OPTIMIZER_INTRO, PANEL, TRAIN_TASK } from '../content/train-text.tsx';
 import { accuracy, activationStory, boundaryStory, gradStory, lossStory, trend } from '../views/narrate.ts';
 
 export const OPTIMIZERS: OptimConfig['kind'][] = ['sgd', 'momentum', 'nesterov', 'rmsprop', 'adam', 'adamw'];
@@ -313,42 +313,48 @@ export function TrainView(props: {
     label: l.label, color: layerColor(i, preset.layers.length), x: a.history.step, y: smooth(a.history.norms[l.label] ?? []),
   }));
 
+  const P = PANEL(preset.config.batchSize);
+  const task = TRAIN_TASK[preset.id];
+  const weightIds = preset.layers.map((l) => l.weight);
   return (
     <div className="train-view">
-      <GuideCard title={preset.title} presetId={preset.id} guide={TRAIN_GUIDES[preset.id]}>
-        <p>{TRAIN_SETUP}</p>
-      </GuideCard>
+      <section className="intro">
+        {task && <h2>{task.headline}</h2>}
+        {task && <p>{task.task}</p>}
+        <p>{HOW_TRAINING_WORKS(preset.config.batchSize)}</p>
+        {task && <p className="intro-lesson">{task.lesson}</p>}
+        <ol className="do-this">{DO_THIS.map((d, i) => <li key={i}>{d}</li>)}</ol>
+      </section>
+
       <div className="toolbar">
         <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
         <button onClick={stepOnce} disabled={running}>Step</button>
         <button onClick={reset}>Reset</button>
         <label className="field">speed <span className="muted">slower</span>
           <input type="range" min={1} max={100} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Training steps per screen update" />
-          <span className="muted">faster</span> <span className="counter">{speed} step{speed > 1 ? 's' : ''} per update</span>
+          <span className="muted">faster</span>
         </label>
-        <span className="counter">step {a.step}{a.sps > 0 ? ` · ${Math.round(a.sps)}/s` : ''}</span>
-        <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
+        <span className="counter">training step {a.step}</span>
+        <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers side by side</label>
       </div>
-
-      <Help>{PANEL_HELP.controls}</Help>
+      <p className="explain-line">{CONTROLS}</p>
+      <p className="explain-line">{OPTIMIZER_INTRO}</p>
       <div className="optim-row">
         {optims.map((o, i) => (
           <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}
             step={runs[i]?.step ?? 0} loss={runs[i]?.history.loss.at(-1)} fault={runs[i]?.fault} />
         ))}
       </div>
-      {[...new Set(optims.map((o) => o.kind))].map((k) => <Help key={k}>{OPTIM_HELP[k]}</Help>)}
+      {[...new Set(optims.map((o) => o.kind))].map((k) => <p key={k} className="explain-line">{OPTIM_HELP[k]}</p>)}
 
       <div className="train-grid">
         <section className="panel graph-panel">
-          <h4>
-            Network{' '}
-            <span className="segmented small-seg" aria-label="Network view">
-              <button className={netView === 'neurons' ? 'on' : ''} aria-pressed={netView === 'neurons'} onClick={() => setNetView('neurons')}>Neurons</button>
-              <button className={netView === 'ops' ? 'on' : ''} aria-pressed={netView === 'ops'} onClick={() => setNetView('ops')}>Operations</button>
-            </span>
-          </h4>
-          <Help>{netView === 'neurons' ? PANEL_HELP.neurons : PANEL_HELP.network}</Help>
+          <h4>{netView === 'neurons' ? P.network.title : P.ops.title}</h4>
+          <span className="segmented small-seg" aria-label="Network view">
+            <button className={netView === 'neurons' ? 'on' : ''} aria-pressed={netView === 'neurons'} onClick={() => setNetView('neurons')}>Neurons</button>
+            <button className={netView === 'ops' ? 'on' : ''} aria-pressed={netView === 'ops'} onClick={() => setNetView('ops')}>Calculations</button>
+          </span>
+          <p className="explain">{netView === 'neurons' ? P.network.explain : P.ops.explain}</p>
           {netView === 'neurons' ? (
             <NeuronDiagram preset={preset} state={neurons} />
           ) : (
@@ -361,9 +367,9 @@ export function TrainView(props: {
 
         {grid && (
           <section className="panel boundary-panel">
-            <h4>Decision boundary</h4>
-            <Help>{PANEL_HELP.boundary}</Help>
-            <p className="story">{boundaryStory(acc, a.step, a.grid ? Math.max(...a.grid.data) - Math.min(...a.grid.data) : 1)}</p>
+            <h4>{P.boundary.title}</h4>
+            <p className="explain">{P.boundary.explain}</p>
+            <p className="story"><b>Right now:</b> {boundaryStory(acc, a.step, a.grid ? Math.max(...a.grid.data) - Math.min(...a.grid.data) : 1)}</p>
             <div className="boundaries">
               {runs.map((r, i) => (
                 <div key={i} className="boundary">
@@ -377,50 +383,61 @@ export function TrainView(props: {
                 </div>
               ))}
             </div>
+            <div className="key">
+              <span><i style={{ background: '#e66101' }} />network says orange</span>
+              <span><i style={{ background: '#2166ac' }} />network says blue</span>
+              <span><i style={{ background: '#f7f7f7', border: '1px solid #ccc' }} />unsure</span>
+              <span><i className="dot" />dot = a real data point, in its true colour</span>
+            </div>
             {film.length > 1 && (
-              <>
-                <Help>{PANEL_HELP.film}</Help>
-                <div className="film">
-                  {film.map((f) => (
-                    <figure key={f.step}>
-                      <Canvas height={64} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
-                      <figcaption>step {f.step}</figcaption>
-                    </figure>
-                  ))}
-                </div>
-              </>
+              <div className="film">
+                {film.map((f) => (
+                  <figure key={f.step}>
+                    <Canvas height={64} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
+                    <figcaption>after step {f.step}</figcaption>
+                  </figure>
+                ))}
+              </div>
             )}
           </section>
         )}
 
         <section className="panel">
-          <h4>Loss</h4>
-          <Help>{PANEL_HELP.loss}</Help>
-          <p className="story">{lossStory(a.history.loss, a.history.val, a.step)}</p>
-          <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, { logY: true })} />
-          <Legend items={runs.map((r, i) => ({ label: r.optim.kind, color: PALETTE[i] }))} />
+          <h4>{P.loss.title}</h4>
+          <p className="explain">{P.loss.explain}</p>
+          <p className="story"><b>Right now:</b> {lossStory(a.history.loss, a.history.val, a.step)}</p>
+          <Canvas height={190} draw={(ctx, w, h) => drawLines(ctx, w, h, lossSeries, {
+            logY: true, yLabel: 'how wrong (loss)', refs: [{ y: Math.LN2, label: 'guessing 50/50 (0.69)' }],
+          })} />
+          <div className="key">
+            {runs.map((r, i) => (
+              <span key={i}>
+                <i style={{ background: PALETTE[i], height: 3, verticalAlign: 3 }} />{comparing ? `${r.optim.kind}: ` : ''}solid = latest group of dots;
+                dashed = dots kept aside for testing
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="panel">
-          <h4>Gradient norm per layer <span className="muted">{comparing ? runs[0].optim.kind : ''}</span></h4>
-          <Help>{PANEL_HELP.gradNow}</Help>
+          <h4>{P.grads.title} {comparing && <span className="muted">({runs[0].optim.kind})</span>}</h4>
+          <p className="explain">{P.grads.explain}</p>
           <LayerBars layers={nowNorms} />
-          <p className="story">{a.step === 0 ? 'Not trained yet: press Run or Step to compute the first gradients.' : gradStory(nowNorms, preset.layers.map((l) => a.history.norms[l.label] ?? []), trend(a.history.loss) === 'falling')}</p>
-          <Help>{PANEL_HELP.gradNorm}</Help>
-          <Canvas height={180} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true })} />
+          <p className="story"><b>Right now:</b> {a.step === 0 ? 'Not trained yet: press Run or Step to compute the first corrections.' : gradStory(nowNorms, preset.layers.map((l) => a.history.norms[l.label] ?? []), trend(a.history.loss) === 'falling')}</p>
+          <Canvas height={170} draw={(ctx, w, h) => drawLines(ctx, w, h, normSeries, { logY: true, yLabel: 'correction size' })} />
           <Legend items={preset.layers.map((l, i) => ({ label: l.label, color: layerColor(i, preset.layers.length) }))} />
         </section>
 
         <section className="panel">
-          <h4>Activations per layer</h4>
-          <Help>{PANEL_HELP.acts}</Help>
-          <p className="story">{activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</p>
+          <h4>{P.acts.title}</h4>
+          <p className="explain">{P.acts.explain}</p>
+          <p className="story"><b>Right now:</b> {activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</p>
           <div className="hists">
-            {preset.layers.map((l) => {
+            {preset.layers.slice(0, -1).map((l) => {
               const s = a.values[l.act];
               return (
                 <div key={l.label} className="hist">
-                  <div className="muted">{l.label} {s ? `(${Math.round(s.fracZero * 100)}% zero)` : ''}</div>
+                  <div className="muted">{l.label}: {s ? `${Math.round(s.fracZero * 100)}% exactly zero` : ''}</div>
                   {s && <Canvas height={60} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#5e3c99')} />}
                 </div>
               );
@@ -429,16 +446,21 @@ export function TrainView(props: {
         </section>
 
         <section className="panel">
-          <h4>{selected ? `Inside ${selected}` : 'Inspect'}</h4>
-          <Help>{PANEL_HELP.inspect}</Help>
-          {!selected && <p className="muted">Click a purple weight box in the network to look inside it.</p>}
+          <h4>{P.inspect.title}</h4>
+          <p className="explain">{P.inspect.explain}</p>
+          <label className="field">show the weights of
+            <select value={selected && weightIds.includes(selected) ? selected : ''} onChange={(e) => setSelected(e.target.value || undefined)}>
+              <option value="">choose a layer…</option>
+              {preset.layers.map((l) => <option key={l.weight} value={l.weight}>{l.label} ({l.weight})</option>)}
+            </select>
+          </label>
           {selected && inspect && (
             <div className="inspect-grid">
-              {([['value', inspect.value], ['gradient', inspect.grad], ['first moment (velocity)', inspect.m], ['second moment', inspect.v]] as const)
-                .filter(([, d]) => d)
+              {([['weights', inspect.value], ['their corrections (gradients)', inspect.grad], ['optimizer memory: average correction', inspect.m], ['optimizer memory: average squared correction', inspect.v]] as const)
+                .filter(([, d]) => d && maxAbs(d) > 0)
                 .map(([label, d]) => (
                   <div key={label}>
-                    <div className="muted">{label} <span>max |x| {fmt(maxAbs(d!))}</span></div>
+                    <div className="muted">{label} <span>(largest: {fmt(maxAbs(d!))})</span></div>
                     <Canvas height={Math.min(140, Math.max(24, (inspect.shape.length >= 2 ? inspect.shape[0] : 1) * 14))}
                       draw={(ctx, w, h) => drawTensor(ctx, w, h, d!, inspect.shape, divergingScale(maxAbs(d!)))} />
                   </div>

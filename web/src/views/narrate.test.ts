@@ -42,8 +42,11 @@ describe('live captions', () => {
     const flat = Array.from({ length: 80 }, () => 3.5);
     const fast = Array.from({ length: 80 }, (_, i) => Math.exp(-i / 5));
     const s = raceStory([{ name: 'sgd', loss: flat, diverged: false }, { name: 'adam', loss: fast, diverged: false }, { name: 'rmsprop', loss: [1], diverged: true }]);
-    expect(s).toMatch(/Lowest loss so far: adam/);
+    expect(s).toMatch(/Lowest so far: adam/);
     expect(s).toMatch(/sgd has almost stopped/);
     expect(s).toMatch(/rmsprop diverged/);
+    const done = raceStory([{ name: 'sgd', loss: [3, 2, 1, -1], diverged: false }, { name: 'adam', loss: [3, -1, -1, -1], diverged: false }]);
+    expect(done).toMatch(/All of them have reached the bottom/);
+    expect(done).toMatch(/first to get there was adam/);
   });
 });

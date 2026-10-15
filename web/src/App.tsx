@@ -89,7 +89,7 @@ export function App() {
                 </optgroup>
               ))}
             </select>
-            <span className="blurb">{preset.blurb}</span>
+            <span className="blurb" />
             {preset.mode !== 'race' && (
               <label className="field">seed
                 <input type="number" value={seed} min={0} onChange={(e) => updateUrl({ seed: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
