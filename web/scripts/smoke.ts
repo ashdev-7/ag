@@ -266,6 +266,27 @@ try {
   await page.goto(`${base}#preset=expression`);
   await page.waitForSelector('.react-flow__node');
   await page.screenshot({ path: join(shots, 'phone.png'), fullPage: true });
+  // on a phone: nothing wider than the screen, the graph runs top to bottom,
+  // and the buttons pinned to the bottom run a lab
+  for (const route of ['', '#preset=mlp', '#preset=moons', '#preset=bowl', `#lesson=${lessonIds[0]}`]) {
+    await page.goto(`${base}${route}`);
+    await sleep(800);
+    const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    check(sw <= cw, `phone: ${route || 'home'} fits the width (${sw} of ${cw})`);
+  }
+  await page.goto(`${base}#preset=mlp`);
+  await page.waitForSelector('.react-flow__node');
+  const tall = await page.locator('.graph-scroll > div').first().evaluate((e) => e.clientHeight > e.clientWidth);
+  check(tall, 'phone: the graph is laid out top to bottom');
+  await page.goto(`${base}#preset=moons`);
+  await page.waitForSelector('.dock');
+  const dockRun = page.locator('.dock').getByRole('button', { name: 'Run' });
+  check(await dockRun.isVisible(), 'phone: Run is pinned to the bottom of the screen');
+  await dockRun.click();
+  await sleep(1500);
+  await page.locator('.dock').getByRole('button', { name: 'Pause' }).click();
+  const docked = Number(/step (\d+)/.exec((await page.locator('.dock .counter').textContent()) ?? '')?.[1] ?? 0);
+  check(docked > 0, `phone: the pinned Run trains (step ${docked})`);
 
   await browser.close();
 } finally {

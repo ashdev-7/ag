@@ -2,13 +2,14 @@
 // and gradient; the step that just ran is outlined, and during the backward
 // pass the edge carrying gradient is drawn moving against the arrow.
 
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Background, Controls, Handle, Position, ReactFlow, ReactFlowProvider } from '@xyflow/react';
 import type { Edge, Node, NodeProps } from '@xyflow/react';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import type { Stats } from '../engine/protocol.ts';
 import { fmt } from '../views/draw.ts';
 import { layoutGraph, OP_SYMBOL } from '../views/graph.ts';
+import { PHONE, TOUCH, useMedia } from './useMedia.ts';
 import type { Highlight } from '../views/graph.ts';
 
 interface OpData extends Record<string, unknown> {
@@ -23,6 +24,7 @@ interface OpData extends Record<string, unknown> {
   selected: boolean;
   fault: boolean;
   compact: boolean;
+  vertical: boolean;
   /** The gradient stops here (detach or no_grad). */
   stop: boolean;
 }
@@ -44,7 +46,7 @@ const OpNode = memo(function OpNode({ data }: NodeProps<Node<OpData>>) {
   const showOp = kind === 'op' && OP_SYMBOL[spec.op] !== label;
   return (
     <div className={cls}>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <Handle type="target" position={data.vertical ? Position.Top : Position.Left} isConnectable={false} />
       <div className="gnode-head">
         {showOp && <span className="gnode-op">{OP_SYMBOL[spec.op] ?? spec.op}</span>}
         <span className="gnode-name">{label}</span>
@@ -54,7 +56,7 @@ const OpNode = memo(function OpNode({ data }: NodeProps<Node<OpData>>) {
       {data.stop
         ? <div className="gnode-grad gnode-stop" title="No gradient flows back through this node">no {data.gradLabel}</div>
         : <div className="gnode-grad">{data.gradDone && data.grad ? `${data.gradLabel} ${summary(data.grad, shape)}` : ' '}</div>}
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="source" position={data.vertical ? Position.Bottom : Position.Right} isConnectable={false} />
     </div>
   );
 });
@@ -77,12 +79,13 @@ export interface GraphCanvasProps {
   stops?: Set<string>;
 }
 
-function Inner(props: GraphCanvasProps) {
+function Inner(props: GraphCanvasProps & { vertical: boolean; touch: boolean }) {
   const { spec, highlight } = props;
   const compact = spec.nodes.length > 40;
+  const { vertical, touch } = props;
   const layout = useMemo(
-    () => layoutGraph(spec, () => (compact ? { width: 92, height: 46 } : { width: 138, height: 70 })),
-    [spec, compact],
+    () => layoutGraph(spec, () => (compact ? { width: 92, height: 46 } : { width: 138, height: 70 }), vertical),
+    [spec, compact, vertical],
   );
   const byId = useMemo(() => new Map(spec.nodes.map((n) => [n.id, n])), [spec]);
   // sizes are fixed by the layout, so React Flow never has to measure a node
@@ -110,6 +113,7 @@ function Inner(props: GraphCanvasProps) {
       selected: props.selected === n.id,
       fault: props.faultNode === n.id,
       compact,
+      vertical,
       stop: !!props.stops?.has(n.id),
     },
   }));
@@ -129,21 +133,48 @@ function Inner(props: GraphCanvasProps) {
     };
   });
 
+  // on a phone the graph is drawn at a readable zoom and sized to itself:
+  // wider than the screen, it scrolls sideways in its box, and the page
+  // scrolls up and down past it. A very big graph is scaled down to stay
+  // within about a screen and a half
+  const box = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
+  useEffect(() => {
+    if (!vertical || !box.current) return;
+    const ro = new ResizeObserver(([e]) => setBoxWidth(e.contentRect.width));
+    ro.observe(box.current);
+    return () => ro.disconnect();
+  }, [vertical]);
+  const zoom = vertical && boxWidth
+    ? Math.max(0.3, Math.min(1.1, Math.max(boxWidth / layout.width, 0.8), (window.innerHeight * 1.5) / layout.height))
+    : 1;
+  const phone = vertical && boxWidth > 0;
+
   return (
+    <div ref={box} className={phone ? 'graph-box graph-scroll' : 'graph-box'}>
+    <div style={phone ? { width: Math.max(boxWidth, layout.width * zoom), height: layout.height * zoom } : { width: '100%', height: '100%' }}>
     <ReactFlow
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
-      fitView
+      fitView={!phone}
       fitViewOptions={{ padding: 0.08, maxZoom: 1.4 }}
+      viewport={phone ? { x: Math.max(0, (boxWidth - layout.width * zoom) / 2), y: 0, zoom } : undefined}
       onNodeClick={(_, n) => props.onSelect(n.id === props.selected ? undefined : n.id)}
       onPaneClick={() => props.onSelect(undefined)}
       nodesConnectable={false}
       minZoom={0.1}
+      panOnDrag={!touch && !phone}
+      zoomOnScroll={!phone}
+      zoomOnPinch={!phone}
+      zoomOnDoubleClick={!phone}
+      preventScrolling={!touch && !phone}
     >
       <Background gap={20} color="#eee" />
-      <Controls showInteractive={false} />
+      {!phone && <Controls showInteractive={false} />}
     </ReactFlow>
+    </div>
+    </div>
   );
 }
 
@@ -153,11 +184,16 @@ let nextGraphKey = 1;
 
 // memo: the training view re-renders every frame, the diagram only when its
 // own inputs change
+// On a phone the graph runs top to bottom, so it fills the narrow width and
+// the page grows taller instead; on a touch screen a finger scrolls the page,
+// not the graph (pinch still zooms, and the buttons zoom and fit).
 export const GraphCanvas = memo(function GraphCanvas(props: GraphCanvasProps) {
+  const vertical = useMedia(PHONE);
+  const touch = useMedia(TOUCH);
   if (!graphKeys.has(props.spec)) graphKeys.set(props.spec, nextGraphKey++);
   return (
-    <ReactFlowProvider key={graphKeys.get(props.spec)}>
-      <Inner {...props} />
+    <ReactFlowProvider key={`${graphKeys.get(props.spec)}${vertical ? 'v' : 'h'}`}>
+      <Inner {...props} vertical={vertical} touch={touch} />
     </ReactFlowProvider>
   );
 });

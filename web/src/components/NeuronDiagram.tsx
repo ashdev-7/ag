@@ -170,7 +170,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
     return () => ro.disconnect();
   }, [state, sizes.join(','), titles.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const { boxes, lines } = layout.current;
@@ -204,12 +204,12 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
     <div className="neurons">
       {/* wider layers get a taller diagram, so every neuron stays at least ~11 px */}
       <canvas ref={ref} style={{ width: '100%', height: props.height ?? Math.min(520, Math.max(360, 40 + Math.max(0, ...sizes) * 14)), display: 'block' }}
-        onMouseMove={onMove} onMouseLeave={() => setHover('')} role="img" aria-label={`Network diagram: ${sizes.join(' → ')} neurons`} />
+        onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(''); }} role="img" aria-label={`Network diagram: ${sizes.join(' → ')} neurons`} />
       <div className="story neuron-hover">
         {hover.picture && state && (
           <Canvas className="neuron-preview" height={84} draw={(ctx, w, h) => drawField(ctx, w, h, hover.picture!, state.res, divergingScale(1))} />
         )}
-        <span>{hover.text || (state ? 'Point at a neuron or a line to see what it is.' : 'Reading the network…')}</span>
+        <span>{hover.text || (state ? 'Point at or tap a neuron or a line to see what it is.' : 'Reading the network…')}</span>
       </div>
     </div>
   );

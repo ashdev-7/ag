@@ -11,8 +11,8 @@ export const STEP_SCREEN: ReactNode = (
 
 /** One line per mode, always shown, so the choice makes sense before clicking. */
 export const MODE_SHORT: Record<PassKind, { name: string; line: ReactNode }> = {
-  forward: { name: 'Forward', line: <>Compute the answer, left to right.</> },
-  reverse: { name: 'Backward', line: <>Then every gradient, right to left.</> },
+  forward: { name: 'Forward', line: <>Compute the answer, from the inputs.</> },
+  reverse: { name: 'Backward', line: <>Then every gradient, back from the answer.</> },
   train: { name: 'Train step', line: <>Then nudge each parameter: one step of learning.</> },
   forwardMode: { name: 'Forward mode', line: <>Gradients the other way, one input per run.</> },
 };

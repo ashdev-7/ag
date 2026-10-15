@@ -17,7 +17,7 @@ export const MODE_INTRO: Record<'step' | 'train' | 'race', ReactNode> = {
 
 /** The graph key: a swatch class (styles.css, .gk-*) and what it means. */
 export const GRAPH_KEY: { swatch: string; label: ReactNode }[] = [
-  { swatch: 'gk-value', label: <>value, flows left → right</> },
+  { swatch: 'gk-value', label: <>value, flows along the arrows</> },
   { swatch: 'gk-grad', label: <><b>∂</b> gradient: how much a nudge here moves the result</> },
   { swatch: 'gk-param', label: <>parameter: learned</> },
   { swatch: 'gk-leaf', label: <>fixed input</> },

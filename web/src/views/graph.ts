@@ -12,10 +12,11 @@ export interface LaidOutNode { id: string; x: number; y: number; width: number; 
 export interface LaidOutEdge { id: string; from: string; to: string; slot: number }
 
 /** Left to right, inputs first. dagre places nodes to keep edges short and uncrossed. */
-export function layoutGraph(spec: GraphSpec, size: (n: NodeSpec) => { width: number; height: number }) {
+/** Left to right, or top to bottom (`vertical`, for a phone's narrow screen). */
+export function layoutGraph(spec: GraphSpec, size: (n: NodeSpec) => { width: number; height: number }, vertical = false) {
   const g = new dagre.graphlib.Graph();
   const big = spec.nodes.length > 60;
-  g.setGraph({ rankdir: 'LR', nodesep: big ? 8 : 24, ranksep: big ? 36 : 60, marginx: 10, marginy: 10 });
+  g.setGraph({ rankdir: vertical ? 'TB' : 'LR', nodesep: big ? 8 : vertical ? 16 : 24, ranksep: big ? 36 : vertical ? 40 : 60, marginx: 10, marginy: 10 });
   g.setDefaultEdgeLabel(() => ({}));
   spec.nodes.forEach((n) => g.setNode(n.id, size(n)));
   const edges: LaidOutEdge[] = [];
@@ -30,7 +31,9 @@ export function layoutGraph(spec: GraphSpec, size: (n: NodeSpec) => { width: num
     const p = g.node(n.id);
     return { id: n.id, x: p.x - p.width / 2, y: p.y - p.height / 2, width: p.width, height: p.height };
   });
-  return { nodes, edges };
+  const width = Math.max(...nodes.map((n) => n.x + n.width)) + 10;
+  const height = Math.max(...nodes.map((n) => n.y + n.height)) + 10;
+  return { nodes, edges, width, height };
 }
 
 /**

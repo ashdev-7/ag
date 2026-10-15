@@ -14,6 +14,7 @@ import { Legend, OptimControls } from './TrainView.tsx';
 import { RACE_GUIDES, RACE_HELP, RACE_SCREEN } from '../content/help.tsx';
 import { Panel, Story } from './Panel.tsx';
 import { SpeedControl } from './Speed.tsx';
+import { Dock } from './Dock.tsx';
 import { raceStory } from '../views/narrate.ts';
 
 interface Racer { optim: OptimConfig; path: [number, number][]; steps: number[]; loss: number[]; done?: string }
@@ -153,6 +154,11 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
         <span className="counter step-count">step <b>{racers[0].steps.at(-1) ?? 0}</b> of {race.maxSteps}</span>
         <span className="hint">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
       </div>
+      <Dock>
+        <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
+        <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
+        <span className="counter">step <b>{racers[0].steps.at(-1) ?? 0}</b> of {race.maxSteps}</span>
+      </Dock>
       <div className="race-optims">
         {optims.map((o, i) => (
           <OptimControls key={i} color={PALETTE[i]} optim={o} onChange={(n) => setOptim(i, n)}

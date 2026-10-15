@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineClient, Session } from '../engine/client.ts';
 import { SpeedControl } from './Speed.tsx';
+import { Dock } from './Dock.tsx';
 import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
 import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, layerColor, maxAbs, PALETTE } from '../views/draw.ts';
@@ -388,6 +389,12 @@ export function TrainView(props: {
         <span className="grow" />
         <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
       </div>
+      <Dock>
+        <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
+        <button onClick={stepOnce} disabled={running}>Step</button>
+        <button onClick={reset}>Reset</button>
+        <span className="counter">step <b>{a.step}</b></span>
+      </Dock>
       <p className="controls-foot">
         <span><b>Run</b> trains until paused · <b>Step</b> makes one nudge · <b>speed</b>: training steps per second</span>
         <span>{OPTIMIZER_KEY}</span>

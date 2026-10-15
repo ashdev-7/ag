@@ -17,6 +17,7 @@ import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { GraphCanvas } from './GraphCanvas.tsx';
+import { Dock } from './Dock.tsx';
 
 const PASSES: PassKind[] = ['forward', 'reverse', 'train', 'forwardMode'];
 
@@ -362,6 +363,14 @@ export function StepView(props: {
           <input type="range" min={60} max={1200} step={30} value={1260 - delay} onChange={(e) => setDelay(1260 - Number(e.target.value))} />
         </label>
       </div>
+      <Dock>
+        <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} aria-label="One step back">◀</button>
+        <button className="primary" onClick={() => setPlaying(!playing)} disabled={cursor.index >= cursor.length && !playing}>
+          {playing ? 'Pause' : 'Play'}
+        </button>
+        <button onClick={() => go(cursor.index + 1)} disabled={cursor.index >= cursor.length} aria-label="One step forward">▶</button>
+        <span className="counter">{cursor.index} / {cursor.length}</span>
+      </Dock>
     </div>
   );
 }
