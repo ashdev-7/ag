@@ -239,23 +239,42 @@ Status sessionStats(const Session& s, NodeId node, Which which, Stats* out) {
 
 // run eval forward over `count` rows starting at `first`, B at a time. the
 // last chunk is filled by cycling rows and weighted by its real size
+// the mean loss over rows [first, first + count), exactly. the eval program
+// has a fixed batch of B rows and its loss is the mean over them (true of
+// mse and cross-entropy). a last, partial chunk of m < B rows is padded with
+// copies of its first row; a second pass with every row set to that row gives
+// that row's loss l0, and the chunk's own total is B·L − (B − m)·l0.
+// (padding by repeating the rows instead weighted some rows more than others)
 static Status evalRows(Session* s, int32_t first, int32_t count, float* out) {
     int32_t B = s->cfg.evalBatchSize;
     const Dataset& d = s->data;
     vector<float> x(size_t(B) * d.xDim), y(size_t(B) * d.yDim);
-    double acc = 0;
-    for (int32_t c = 0; c * B < count; ++c) {
-        for (int32_t r = 0; r < B; ++r) {
-            int32_t row = first + (c * B + r) % count;
-            copy_n(d.x.begin() + size_t(row) * d.xDim, d.xDim, x.begin() + size_t(r) * d.xDim);
-            copy_n(d.y.begin() + size_t(row) * d.yDim, d.yDim, y.begin() + size_t(r) * d.yDim);
-        }
+    auto fill = [&](int32_t r, int32_t row) {
+        copy_n(d.x.begin() + size_t(row) * d.xDim, d.xDim, x.begin() + size_t(r) * d.xDim);
+        copy_n(d.y.begin() + size_t(row) * d.yDim, d.yDim, y.begin() + size_t(r) * d.yDim);
+    };
+    auto run = [&](double* loss) -> Status {
         AG_TRY(bindRows(s, &s->eval, x, y));
         AG_TRY(execBegin(&s->eval, PassKind::Forward));
         AG_TRY(execRun(&s->eval));
-        acc += double(execLoss(s->eval)) * min(B, count - c * B);
+        *loss = execLoss(s->eval);
+        return {};
+    };
+    double total = 0;
+    for (int32_t start = 0; start < count; start += B) {
+        int32_t m = min(B, count - start);
+        for (int32_t r = 0; r < B; ++r) fill(r, first + start + (r < m ? r : 0));
+        double mean;
+        AG_TRY(run(&mean));
+        total += mean * B;
+        if (m < B) {
+            for (int32_t r = 0; r < B; ++r) fill(r, first + start);
+            double l0;
+            AG_TRY(run(&l0));
+            total -= l0 * (B - m);
+        }
     }
-    *out = toFloat(acc / count);
+    *out = toFloat(total / count);
     return {};
 }
 

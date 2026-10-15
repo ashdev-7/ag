@@ -524,6 +524,30 @@ static void testMoons() {
     }
     printf("  val accuracy %d / %d\n", correct, total);
     check(correct >= total * 95 / 100, "val accuracy at least 95%");
+
+    // the evaluation batch size must not change the answer: batch 1 is the
+    // plain mean over rows; 7 and 128 leave a partial last chunk (80 val
+    // rows, 320 train rows), 512 is larger than either split
+    float ref[2] = {}, worst = 0;
+    for (int32_t eb : {1, 7, 128, 512}) {
+        SessionConfig c = moonsConfig(OptimKind::Sgd, 0.5f);
+        c.evalBatchSize = eb;
+        unique_ptr<Session> e;
+        if (!sessionCreate(moonsMlp(16), c, &e).ok() || !sessionImportParams(e.get(), s->params.values).ok()) {
+            check(false, "eval batch " + to_string(eb) + ": session");
+            return;
+        }
+        float l[2];
+        sessionEvalLoss(e.get(), Split::Train, &l[0]);
+        sessionEvalLoss(e.get(), Split::Val, &l[1]);
+        for (int k = 0; k < 2; ++k) {
+            if (eb == 1) ref[k] = l[k];
+            worst = max(worst, float(fabs(l[k] - ref[k]) / max(1e-6f, ref[k])));
+        }
+    }
+    char buf[96];
+    snprintf(buf, sizeof buf, "train and val loss are the same at eval batch 1, 7, 128, 512 (worst rel diff %.1e)", worst);
+    check(worst < 1e-4f, buf);
 }
 
 // ── 5. session invariants ────────────────────────────────────────────────────
