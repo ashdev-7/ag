@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createEngineClient } from './engine/client.ts';
+import { createLocalWorker } from './engine/local.ts';
 import type { EngineStatus } from './engine/client.ts';
 import { findPreset, PRESETS } from './graph/presets.ts';
 import { fromUrlHash, toUrlHash } from './views/graph.ts';
@@ -15,6 +16,7 @@ import { Landing } from './components/Landing.tsx';
 import { LessonView } from './components/LessonView.tsx';
 import { findLesson } from './content/lessons/index.ts';
 import { RaceView } from './components/RaceView.tsx';
+import { Recover } from './components/Recover.tsx';
 import { Recorded } from './components/Recorded.tsx';
 import { StepView } from './components/StepView.tsx';
 import { TrainView } from './components/TrainView.tsx';
@@ -25,7 +27,9 @@ export function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: 'loading' });
   const client = useMemo(() => createEngineClient({
     createWorker: () => new Worker(new URL('./engine/worker.ts', import.meta.url), { type: 'module' }),
+    createLocal: createLocalWorker,
     wasmUrl: new URL(`${import.meta.env.BASE_URL}engine/ag.mjs`, window.location.href).href,
+    jsUrl: new URL(`${import.meta.env.BASE_URL}engine/ag-js.mjs`, window.location.href).href,
     onStatus: setStatus,
   }), []);
   useEffect(() => () => client.dispose(), [client]);
@@ -34,8 +38,15 @@ export function App() {
   // a page opened by a click (a link, the menu) starts at the top; back and
   // forward leave the browser to return the reader to where they were
   const clicked = useRef(false);
+  // every arrival by address (a link, back, forward, an edited address) opens
+  // the page fresh from it, even one for the lab already showing: the views'
+  // own writes replace the address and fire no hashchange
+  const [visit, setVisit] = useState(0);
   useEffect(() => {
-    const onHash = () => setUrl(fromUrlHash(window.location.hash));
+    const onHash = () => {
+      setUrl(fromUrlHash(window.location.hash));
+      setVisit((v) => v + 1);
+    };
     const onClick = (e: MouseEvent) => {
       const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
       if (a && !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) clicked.current = true;
@@ -96,7 +107,7 @@ export function App() {
   else if (status.state === 'unavailable') body = <Recorded preset={preset} />;
   else if (status.state !== 'ready') body = <div className="loading" role="status" aria-label="Loading"><span /><span /><span /></div>;
   else {
-    const key = `${preset.id}:${seed}:${status.generation}`;
+    const key = `${preset.id}:${seed}:${status.generation}:${visit}`;
     const common = { client, preset, seed, url, onUrl, onBanner };
     body = preset.mode === 'step' ? <StepView key={key} {...common} />
       : preset.mode === 'train' ? <TrainView key={key} {...common} />
@@ -104,7 +115,7 @@ export function App() {
   }
 
   return (
-    <div className="app" data-engine={status.state}>
+    <div className="app" data-engine={status.state} data-engine-where={status.state === 'ready' ? `${status.where} ${status.build}` : undefined}>
       <nav className="top">
         <a className="brand" href="#">ag<span>·glass</span></a>
         {lesson && <a className="nav-link" href="#">All lessons</a>}
@@ -127,7 +138,8 @@ export function App() {
         )}
       </nav>
       <ErrorBanner banner={banner} onDismiss={() => setBanner(undefined)} />
-      <main>{body}</main>
+      {/* a page that fails to draw keeps the rest of the site; a new page starts clean */}
+      <main><Recover key={`${page}:${visit}`}>{body}</Recover></main>
     </div>
   );
 }

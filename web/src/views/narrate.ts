@@ -93,11 +93,17 @@ export function lossStory(loss: number[], val: (number | null)[], step: number, 
 
 export function gradStory(layers: { label: string; norm: number }[], history: number[][], lossFalling = false): string {
   if (!layers.length) return '';
+  // a blown-up step: the sizes are no longer numbers to compare
+  if (layers.some((l) => !Number.isFinite(l.norm)))
+    return 'A gradient overflowed (it became infinite or not a number): the steps were far too big. Reset and try a smaller lr.';
   if (layers.every((l) => !(l.norm > 1e-12))) return 'Every gradient is zero: no weight can change, so it cannot learn at all.';
   const first = layers[0], last = layers[layers.length - 1];
-  const ratio = first.norm / Math.max(last.norm, 1e-30);
+  if (!(first.norm > 1e-30)) return 'Layer 1 gets no gradient at all: it cannot learn.';
+  const ratio = Math.min(first.norm / Math.max(last.norm, 1e-30), 1e300);
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
   const times = (r: number) => {
     const p = Math.round(Math.log10(r));
+    if (p > 6) return `about 10${[...String(p)].map((d) => SUP[Number(d)]).join('')}×`;
     return p >= 3 ? `about ${'1' + '0'.repeat(p)}×`.replace(/(\d)(?=(\d{3})+×)/g, '$1,') : `about ${Math.round(r)}×`;
   };
   let s: string;

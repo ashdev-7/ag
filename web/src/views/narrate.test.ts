@@ -31,6 +31,11 @@ describe('live captions', () => {
     expect(gradStory([{ label: 'a', norm: 1e-5 }, { label: 'b', norm: 1e-1 }], [])).toMatch(/about 10,000× less/);
     expect(gradStory([{ label: 'a', norm: 0 }, { label: 'b', norm: 0 }], [])).toMatch(/cannot learn/);
     expect(gradStory([{ label: 'a', norm: 0.04 }, { label: 'b', norm: 0.01 }], [])).toMatch(/every layer is learning/);
+    // a blown-up run must still get a sentence, never a crash
+    expect(gradStory([{ label: 'a', norm: Infinity }, { label: 'b', norm: 1 }], [])).toMatch(/overflowed/);
+    expect(gradStory([{ label: 'a', norm: NaN }, { label: 'b', norm: 1 }], [])).toMatch(/overflowed/);
+    expect(gradStory([{ label: 'a', norm: 0 }, { label: 'b', norm: 1 }], [])).toMatch(/no gradient at all/);
+    expect(gradStory([{ label: 'a', norm: 1e30 }, { label: 'b', norm: 1e-10 }], [])).toMatch(/about 10⁴⁰× more/);
     expect(activationStory([{ label: 'layer 1', fracZero: 1, std: 0 }], true)).toMatch(/dead/);
     expect(activationStory([{ label: 'layer 1', fracZero: 0.4, std: 0.5 }], true)).toMatch(/normal for ReLU/);
     expect(activationStory([{ label: 'layer 5', fracZero: 0, std: 0.06 }], false)).toMatch(/narrow band/);

@@ -185,6 +185,9 @@ try {
   await page.goto(`${base}#preset=moons`);
   await page.waitForSelector('.train-view');
   await page.waitForSelector('.app[data-engine="ready"]');
+  // a link to the lab already showing opens it fresh: one optimizer, step 0
+  const fresh = Number(/step (\d+)/.exec((await page.locator('.toolbar .step-count').textContent()) ?? '')?.[1] ?? -1);
+  check((await page.locator('.optim').count()) === 1 && fresh === 0, `compare → plain link: opens fresh (${await page.locator('.optim').count()} optimizer(s), step ${fresh})`);
   for (const [sps, ms] of [[1, 4000], [5, 4000]] as const) {
     await setSpeed(sps);
     const { step, secs } = await trainFor(ms);
