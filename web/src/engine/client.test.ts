@@ -6,7 +6,7 @@ import { createEngineClient } from './client.ts';
 import type { EngineStatus } from './client.ts';
 import type { Envelope, FromWorker } from './protocol.ts';
 
-type Mode = 'ok' | 'hang' | 'fatal' | 'loadFails';
+type Mode = 'ok' | 'hang' | 'fatal' | 'loadFails' | 'broken';
 
 class FakeWorker {
   onmessage: ((ev: MessageEvent<FromWorker>) => void) | null = null;
@@ -21,9 +21,11 @@ class FakeWorker {
     this.sent.push(msg);
     const reply = (m: FromWorker) => setTimeout(() => !this.terminated && this.onmessage?.({ data: m } as MessageEvent<FromWorker>), 1);
     const mode = this.mode();
+    // a worker the browser could not run (old Firefox without module workers): an error event, no reply
+    if (mode === 'broken') return setTimeout(() => !this.terminated && this.onerror?.({ message: 'SyntaxError', preventDefault() {} } as ErrorEvent), 1);
     if (msg.type === 'init') {
       if (mode === 'loadFails') return reply({ id: msg.id, ok: false, error: { code: 'WasmLoadFailed', message: 'no wasm' } });
-      return reply({ id: msg.id, ok: true, result: { abi: 2, ops: [] } });
+      return reply({ id: msg.id, ok: true, result: { abi: 2, ops: [], build: 'wasm' } });
     }
     if (mode === 'hang') return;
     if (mode === 'fatal') return reply({ type: 'fatal', error: { code: 'WorkerCrashed', message: 'trap' } });
@@ -39,22 +41,29 @@ class FakeWorker {
 const spec = { version: 1 as const, nodes: [{ id: 'a', op: 'input' as const, inputs: [] }], loss: '', outputs: [] };
 const config = { batchSize: 1, seed: 1, optim: { kind: 'sgd' as const, lr: 0.1 }, data: { kind: 'none' as const, n: 0, noise: 0, valFraction: 0 } };
 
-function setup(initial: Mode) {
+function setup(initial: Mode, local?: { mode: Mode | 'throws' }) {
   const statuses: EngineStatus[] = [];
-  let workers = 0;
+  let workers = 0, locals = 0;
   let mode = initial;
   let last: FakeWorker | null = null;
   const client = createEngineClient({
     createWorker: () => {
+      if (mode === 'broken' && local?.mode === 'throws') throw new Error('Worker is not defined');
       workers++;
       last = new FakeWorker(() => mode);
       return last as unknown as Worker;
     },
+    createLocal: local && (() => {
+      locals++;
+      const m = local.mode === 'throws' ? 'ok' : local.mode;
+      last = new FakeWorker(() => (mode === 'ok' || mode === 'broken' || mode === 'loadFails' ? m : mode));
+      return last as unknown as Worker;
+    }),
     wasmUrl: 'x',
     timeoutMs: 40,
     onStatus: (s) => statuses.push(s),
   });
-  return { client, statuses, workers: () => workers, setMode: (m: Mode) => (mode = m), worker: () => last! };
+  return { client, statuses, workers: () => workers, locals: () => locals, setMode: (m: Mode) => (mode = m), worker: () => last! };
 }
 
 describe('EngineClient', () => {
@@ -116,6 +125,51 @@ describe('EngineClient', () => {
     expect((await client.ready()).ok).toBe(false);
     expect(client.status.state).toBe('unavailable');
     client.dispose();
+  });
+
+  // ── where a worker cannot run the engine, the page runs it ──────────────
+  it('runs the engine on the page when a worker cannot be created', async () => {
+    const t = setup('broken', { mode: 'throws' });
+    expect((await t.client.ready()).ok).toBe(true);
+    expect([t.workers(), t.locals()]).toEqual([0, 1]);
+    expect((await t.client.createSession(spec, config)).ok).toBe(true);
+    t.client.dispose();
+  });
+
+  it('runs the engine on the page when the worker fails before it is ready', async () => {
+    const t = setup('broken', { mode: 'ok' });
+    expect((await t.client.ready()).ok).toBe(true);
+    expect([t.workers(), t.locals()]).toEqual([1, 1]);
+    expect(t.statuses.map((s) => s.state)).not.toContain('unavailable');
+    expect((await t.client.createSession(spec, config)).ok).toBe(true);
+    t.client.dispose();
+  });
+
+  it('runs the engine on the page when the worker cannot load it', async () => {
+    const t = setup('loadFails', { mode: 'ok' });
+    expect((await t.client.ready()).ok).toBe(true);
+    expect([t.workers(), t.locals()]).toEqual([1, 1]);
+    expect((await t.client.createSession(spec, config)).ok).toBe(true);
+    t.client.dispose();
+  });
+
+  it('a worker that crashes after working is restarted as a worker', async () => {
+    const t = setup('ok', { mode: 'ok' });
+    await t.client.ready();
+    t.setMode('hang');
+    await t.client.createSession(spec, config);
+    t.setMode('ok');
+    await t.client.ready();
+    expect([t.workers(), t.locals()]).toEqual([2, 0]);
+    t.client.dispose();
+  });
+
+  it('gives up only when the page cannot load the engine either', async () => {
+    const t = setup('loadFails', { mode: 'loadFails' });
+    expect((await t.client.ready()).ok).toBe(false);
+    expect(t.client.status.state).toBe('unavailable');
+    expect([t.workers(), t.locals()]).toEqual([1, 1]);
+    t.client.dispose();
   });
 
   it('acknowledges each frame once, after the page has handled it, and not after a pause', async () => {

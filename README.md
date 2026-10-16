@@ -51,6 +51,9 @@ npm run behaviour         # every training lab and race does what its text says,
 npm run build             # dist/
 node scripts/smoke.ts shots firefox  # every preset in a headless browser: chromium (default), firefox or webkit
                           # (after build; needs `npx playwright install chromium firefox webkit`)
+node scripts/navigate.ts webkit       # clicks every link, menu entry, variant and Back (164 pages), no reloads
+node scripts/instructions.ts webkit   # follows every lesson's and lab's instructions: what they name is on screen
+PART=0-5 node scripts/controls.ts webkit [phone]  # uses every control on labs 0-4 (PART=lessons: the lessons)
 npm run record            # regenerate the recorded runs in public/recordings
 node scripts/perf.ts      # frame times while training, racing and stepping (after build)
 ```
@@ -64,9 +67,10 @@ otherwise they load Git's older `libstdc++-6.dll` and crash.
 
 Vercel: import the repository with Root Directory `web`; `web/vercel.json`
 has the rest. Vercel cannot
-compile the engine, so the built engine (`web/public/engine/ag.{mjs,wasm}`) is
-committed. After changing anything in `engine/`, run `make -C engine wasm`
-and commit the two files with the change.
+compile the engine, so the built engine is committed: `web/public/engine/ag.{mjs,wasm}`,
+and `ag-js.mjs`, the same engine as plain JavaScript for browsers without
+WebAssembly. After changing anything in `engine/`, run `make -C engine wasm`
+and commit the three files with the change.
 
 GitHub Pages: `.github/workflows/pages.yml` builds everything from source and
 publishes `web/dist`. Enable Pages with source "GitHub Actions" in the

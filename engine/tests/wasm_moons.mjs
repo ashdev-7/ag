@@ -14,7 +14,11 @@ import { loadEngine, createSession } from '../../web/src/engine/bridge.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const wasmDir = join(here, '../../web/public/engine');
-const moduleUrl = pathToFileURL(join(wasmDir, 'ag.mjs')).href;
+// AG_ENGINE=ag-js.mjs checks the plain-JavaScript build instead (for browsers without WebAssembly)
+const moduleUrl = pathToFileURL(join(wasmDir, process.env.AG_ENGINE ?? 'ag.mjs')).href;
+// NO_WASM=1: as a browser without WebAssembly (iOS Lockdown Mode, some locked-down
+// browsers) sees it. Removed after the imports, which node itself compiles with it
+if (process.env.NO_WASM) delete globalThis.WebAssembly;
 
 let failed = 0;
 const check = (ok, label) => {

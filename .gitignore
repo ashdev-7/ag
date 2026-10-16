@@ -11,3 +11,4 @@ web/smoke-shots/
 .idea/
 .DS_Store
 Thumbs.db
+*.tsbuildinfo

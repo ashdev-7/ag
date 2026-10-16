@@ -22,11 +22,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.12   # the JavaScript build (WASM=0) is deprecated upstream; keep the version that has it
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
       - run: make -C engine test wasm
-      - run: node engine/tests/wasm_moons.mjs
+      - run: make -C engine wasm-test
       - name: build the site
         working-directory: web
         run: |

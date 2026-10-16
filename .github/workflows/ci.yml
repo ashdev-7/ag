@@ -29,15 +29,19 @@ jobs:
           pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
           python engine/tests/torch_check.py engine/build/cases.json
       - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.12   # the JavaScript build (WASM=0) is deprecated upstream; keep the version that has it
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
-      - name: the committed wasm build agrees with native
-        run: node engine/tests/wasm_moons.mjs
+      - name: the committed engine builds (WebAssembly, and JavaScript without WebAssembly) agree with native
+        run: |
+          node engine/tests/wasm_moons.mjs
+          AG_ENGINE=ag-js.mjs NO_WASM=1 node engine/tests/wasm_moons.mjs
       - name: a fresh wasm build agrees with native
         run: |
           make -C engine wasm
-          node engine/tests/wasm_moons.mjs
+          make -C engine wasm-test
       - uses: actions/upload-artifact@v4
         with:
           name: engine-wasm

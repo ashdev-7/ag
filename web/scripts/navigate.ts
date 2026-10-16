@@ -6,11 +6,63 @@
 //
 //   npm run build && node scripts/navigate.ts [chromium|firefox|webkit] [base url]
 //   SLOW=4 node scripts/navigate.ts chromium     (a slow machine)
+//   PROFILE=nowasm node scripts/navigate.ts ...  (a browser missing something: see PROFILES)
 
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium, firefox, webkit } from 'playwright';
 import type { Page } from 'playwright';
 import { PRESETS } from '../src/graph/presets.ts';
+
+// PROFILE: a browser missing something the engine would like. The live
+// labs must work in every one, on the path named here:
+//   nowasm        no WebAssembly (iOS Lockdown Mode): worker, JavaScript build
+//   wasmblocked   WebAssembly present but refused (strict security policy): worker, JavaScript build
+//   brokenworker  the worker fails as it starts (Firefox before 114, without module workers): page, WebAssembly
+//   noworker      no workers at all: page, WebAssembly
+//   bare          no workers and no WebAssembly: page, JavaScript build
+//   oldjs         no Array/TypedArray .at() (iOS 15.0-15.3, Chrome before 92): worker, WebAssembly
+const PROFILES: Record<string, { expect: string; script: string }> = {
+  nowasm: { expect: 'worker js', script: 'NO_WASM' },
+  wasmblocked: { expect: 'worker js', script: 'BLOCK_WASM' },
+  brokenworker: { expect: 'page wasm', script: 'BROKEN_WORKER' },
+  noworker: { expect: 'page wasm', script: 'NO_WORKER' },
+  bare: { expect: 'page js', script: 'NO_WORKER NO_WASM' },
+  oldjs: { expect: 'worker wasm', script: 'NO_AT' },
+};
+const profile = process.env.PROFILE ? PROFILES[process.env.PROFILE] : undefined;
+if (process.env.PROFILE && !profile) throw new Error(`no profile ${process.env.PROFILE}`);
+
+/** Runs before the page's own scripts: takes away what the profile says, in the page and in its workers. */
+function cripple(flags: string) {
+  const blockWasm = 'const no = () => { throw new WebAssembly.CompileError("blocked by policy"); };'
+    + 'WebAssembly.Module = function () { no(); }; WebAssembly.compile = WebAssembly.instantiate = WebAssembly.compileStreaming'
+    + ' = WebAssembly.instantiateStreaming = () => Promise.reject(new WebAssembly.CompileError("blocked by policy"));';
+  const inWorker = flags.includes('NO_WASM') ? 'delete self.WebAssembly;' : flags.includes('BLOCK_WASM') ? blockWasm : '';
+  const noAt = 'for (const C of [Array, String, Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array]) delete C.prototype.at;';
+  const w = window as unknown as Record<string, unknown>;
+  if (flags.includes('NO_AT')) new Function(noAt)();
+  if (flags.includes('NO_WASM')) delete w.WebAssembly;
+  if (flags.includes('BLOCK_WASM')) new Function(blockWasm)();
+  const Real = window.Worker;
+  if (flags.includes('NO_WORKER')) { delete w.Worker; return; }
+  w.Worker = function (url: string | URL, opts?: WorkerOptions) {
+    // a browser without module workers runs the script as a classic one, which stops at its first import
+    if (flags.includes('BROKEN_WORKER'))
+      return new Real(URL.createObjectURL(new Blob(['throw new SyntaxError("import declarations may only appear at top level of a module")'], { type: 'text/javascript' })));
+    const href = new URL(url, location.href).href;
+    // before the worker's own code: a module of its own, imported first
+    if (flags.includes('NO_AT')) {
+      const first = URL.createObjectURL(new Blob([noAt], { type: 'text/javascript' }));
+      return new Real(URL.createObjectURL(new Blob([`import ${JSON.stringify(first)};
+import ${JSON.stringify(href)};`], { type: 'text/javascript' })), opts);
+    }
+    if (!inWorker) return new Real(url, opts);
+    // a static import runs first, then this script; the engine loads later, on 'init'
+    const src = `import ${JSON.stringify(href)};
+${inWorker}`;
+    return new Real(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), opts);
+  };
+}
 
 const browserName = process.argv[2] ?? 'chromium';
 const browserType = { chromium, firefox, webkit }[browserName]!;
@@ -80,6 +132,12 @@ async function works(what: string, hash: string, top = true) {
       if (!ok) return fail(`${what}: drawn, but Race did not move`);
     }
   }
+  if (ok && preset) {
+    if (await count('.recorded')) return fail(`${what}: showed a recording, not the live lab`);
+    const where = await page.locator('.app').getAttribute('data-engine-where');
+    if (profile && where !== profile.expect) return fail(`${what}: engine ran as "${where}", expected "${profile.expect}"`);
+    if (!profile && where !== 'worker wasm') return fail(`${what}: engine ran as "${where}", expected "worker wasm"`);
+  }
   if (!ok) {
     const text = (await page.locator('main').innerText().catch(() => '')).slice(0, 80).replace(/\s+/g, ' ');
     return fail(`${what}: did not load (main shows "${text}")`);
@@ -99,6 +157,10 @@ try {
   const browser = await browserType.launch();
   console.log(`browser: ${browserName} ${browser.version()}  site: ${base}`);
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  if (profile) {
+    await page.addInitScript(cripple, profile.script);
+    console.log(`profile ${process.env.PROFILE}: the engine should run in the ${profile.expect.replace(' ', ', ')} build`);
+  }
   // SLOW=4: a CPU four times slower (Chromium only), for timing bugs a fast machine hides
   if (process.env.SLOW && browserName === 'chromium') {
     const cdp = await page.context().newCDPSession(page);

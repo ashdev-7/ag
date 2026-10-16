@@ -128,7 +128,7 @@ export interface Dataset {
 // ── requests ────────────────────────────────────────────────────────────────
 
 export type Request =
-  | { type: 'init'; wasmUrl: string; protocol: typeof PROTOCOL_VERSION }
+  | { type: 'init'; wasmUrl: string; jsUrl?: string; protocol: typeof PROTOCOL_VERSION }
   | { type: 'createSession'; spec: GraphSpec; config: SessionConfig }
   | { type: 'destroySession'; session: SessionId }
   | { type: 'reset'; session: SessionId; seed: number }
@@ -187,7 +187,8 @@ export interface ScalarView extends SessionInfo {
 
 /** Reply payload for each request type. */
 export interface Replies {
-  init: { abi: number; ops: { name: string; symbol: string; category: number }[] };
+  /** build: which compile of the engine loaded (WebAssembly, or JavaScript where WebAssembly cannot run) */
+  init: { abi: number; ops: { name: string; symbol: string; category: number }[]; build: 'wasm' | 'js' };
   createSession: SessionInfo;
   destroySession: {};
   reset: {};

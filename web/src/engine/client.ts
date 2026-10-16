@@ -16,15 +16,19 @@ export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError
 
 export type EngineStatus =
   | { state: 'loading' }
-  | { state: 'ready'; generation: number }
+  | { state: 'ready'; generation: number; where: 'worker' | 'page'; build: 'wasm' | 'js' }
   /** The worker died or hung and is being restarted. Sessions were lost. */
   | { state: 'restarting'; error: EngineError; attempt: number }
-  /** Gave up: WebAssembly unavailable or repeated crashes. Page falls back to recorded presets. */
+  /** Gave up: the engine crashed again and again, on the page as well as in a worker. */
   | { state: 'unavailable'; error: EngineError };
 
 export interface EngineClientOptions {
   createWorker: () => Worker;
+  /** The engine on the page's thread, where a worker cannot start or never gets ready (local.ts). */
+  createLocal?: () => Worker;
   wasmUrl: string;
+  /** The engine compiled to JavaScript, for browsers without WebAssembly. */
+  jsUrl?: string;
   /** A request with no reply after this long means the worker is hung. Default 5000. */
   timeoutMs?: number;
   /** Restarts allowed in a row before giving up. Default 2. */
@@ -99,6 +103,9 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
   const timeoutMs = options.timeoutMs ?? 5000;
   const maxRestarts = options.maxRestarts ?? 2;
   let worker: Worker | null = null;
+  // in a worker first; on the page if the worker cannot start or never gets ready
+  let onPage = false;
+  let everReady = false;
   let status: EngineStatus = { state: 'loading' };
   let generation = 0;
   let restartsInARow = 0;
@@ -146,11 +153,20 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
     sessions.get(msg.session)?.event(msg);
   }
 
+  /** The worker never got going: run the engine on the page instead. True if it switched. */
+  function moveToPage(): boolean {
+    if (onPage || everReady || !options.createLocal) return false;
+    onPage = true;
+    restartsInARow = 0;
+    return true;
+  }
+
   function start() {
     try {
-      worker = options.createWorker();
+      worker = onPage ? options.createLocal!() : options.createWorker();
     } catch (e) {
-      setStatus({ state: 'unavailable', error: { code: 'WasmLoadFailed', message: `workers are unavailable: ${String(e)}` } });
+      if (moveToPage()) return start();
+      setStatus({ state: 'unavailable', error: { code: 'WasmLoadFailed', message: `the engine could not start: ${String(e)}` } });
       return;
     }
     worker.onmessage = (ev: MessageEvent<FromWorker>) => onMessage(ev.data);
@@ -158,16 +174,25 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
       ev.preventDefault();
       crash({ code: 'WorkerCrashed', message: ev.message || 'the engine worker failed' });
     };
-    send({ type: 'init', wasmUrl: options.wasmUrl, protocol: PROTOCOL_VERSION }).then((r) => {
-      if (disposed) return;
+    const mine = worker;
+    send({ type: 'init', wasmUrl: options.wasmUrl, jsUrl: options.jsUrl, protocol: PROTOCOL_VERSION }).then((r) => {
+      if (disposed || worker !== mine) return;
       if (!r.ok) {
-        // a load failure will not fix itself by retrying; a crash or timeout
-        // during init has already been handled by crash()
-        if (r.error.code === 'WasmLoadFailed' || r.error.code === 'Internal') giveUp(r.error);
+        // a load failure will not fix itself by retrying the same way, but a
+        // worker that could not load the engine may manage on the page; a
+        // crash or timeout during init has already been handled by crash()
+        if (r.error.code === 'WasmLoadFailed' || r.error.code === 'Internal') {
+          if (moveToPage()) {
+            stop(r.error);
+            return start();
+          }
+          giveUp(r.error);
+        }
         return;
       }
+      everReady = true;
       generation++;
-      setStatus({ state: 'ready', generation });
+      setStatus({ state: 'ready', generation, where: onPage ? 'page' : 'worker', build: r.value.build ?? 'wasm' });
       clearTimeout(healthyTimer);
       healthyTimer = setTimeout(() => (restartsInARow = 0), 10000);
     });
@@ -194,6 +219,7 @@ export function createEngineClient(options: EngineClientOptions): EngineClient {
     if (disposed || status.state === 'unavailable') return;
     stop(error);
     clearTimeout(healthyTimer);
+    if (moveToPage()) return start();
     if (++restartsInARow > maxRestarts) return giveUp(error);
     setStatus({ state: 'restarting', error, attempt: restartsInARow });
     start();
