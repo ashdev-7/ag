@@ -108,7 +108,32 @@ export function drawField(ctx: CanvasRenderingContext2D, w: number, h: number, d
 export interface Domain { x0: number; x1: number; y0: number; y1: number }
 
 /** Labelled points over a field: class 0 blue, class 1 orange. */
+// the dots stay put while the field behind them changes up to 30 times a
+// second: they are drawn once into a layer of their own, which is then
+// stamped on top. Redrawn when the data, the size or the highlight changes
+const dotLayers = new WeakMap<ArrayLike<number>, { key: string; layer: HTMLCanvasElement }>();
+
 export function drawPoints(ctx: CanvasRenderingContext2D, w: number, h: number, x: ArrayLike<number>, labels: number[], d: Domain, highlight = -1) {
+  const scale = ctx.getTransform().a || 1;
+  const key = `${w}|${h}|${scale}|${highlight}|${labels.length}|${d.x0},${d.x1},${d.y0},${d.y1}`;
+  let cached = typeof document !== 'undefined' ? dotLayers.get(x) : undefined;
+  if (typeof document !== 'undefined' && (!cached || cached.key !== key)) {
+    const layer = cached?.layer ?? document.createElement('canvas');
+    layer.width = Math.round(w * scale);
+    layer.height = Math.round(h * scale);
+    const lctx = layer.getContext('2d');
+    if (lctx) {
+      lctx.setTransform(scale, 0, 0, scale, 0, 0);
+      drawDots(lctx, w, h, x, labels, d, highlight);
+      cached = { key, layer };
+      dotLayers.set(x, cached);
+    }
+  }
+  if (cached && cached.key === key) ctx.drawImage(cached.layer, 0, 0, w, h);
+  else drawDots(ctx, w, h, x, labels, d, highlight);
+}
+
+function drawDots(ctx: CanvasRenderingContext2D, w: number, h: number, x: ArrayLike<number>, labels: number[], d: Domain, highlight: number) {
   for (let i = 0; i < labels.length; ++i) {
     const px = ((x[2 * i] - d.x0) / (d.x1 - d.x0)) * w;
     const py = (1 - (x[2 * i + 1] - d.y0) / (d.y1 - d.y0)) * h;

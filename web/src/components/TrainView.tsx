@@ -336,14 +336,20 @@ export function TrainView(props: {
   const P = PANEL(preset.config.batchSize);
   const task = TRAIN_TASK[preset.id];
   const weightIds = preset.layers.map((l) => l.weight);
-  const filmstrip = film.length > 1 && (
+  // every photo has its place from the start: the strip fills in as training
+  // reaches each step, without pushing the page down when it appears
+  const filmstrip = film.length > 0 && (
     <div className="film">
-      {film.map((f) => (
-        <figure key={f.step}>
-          <Canvas height={58} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
-          <figcaption>step {f.step}</figcaption>
-        </figure>
-      ))}
+      {FILM_STEPS.map((step, k) => {
+        const f = film[k];   // photos are taken in order, one per slot
+        return (
+          <figure key={step}>
+            {f ? <Canvas height={58} draw={(ctx, w, h) => drawField(ctx, w, h, f.grid.data.map((p) => 2 * p - 1), f.grid.res, divergingScale(1))} />
+              : <div className="film-empty" />}
+            <figcaption>step {f ? f.step : step}</figcaption>
+          </figure>
+        );
+      })}
     </div>
   );
   return (
@@ -374,8 +380,8 @@ export function TrainView(props: {
       </header>
 
       <div className="controls toolbar">
-        <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
-        <button onClick={stepOnce} disabled={running} title="Exactly one training step">Step</button>
+        <button className="primary" onClick={running ? pause : start} disabled={!running && !sessions.length}>{running ? 'Pause' : 'Run'}</button>
+        <button onClick={stepOnce} disabled={running || !sessions.length} title="Exactly one training step">Step</button>
         <button onClick={reset} title="Start over from the same random weights">Reset</button>
         <SpeedControl value={speed} onChange={setSpeed} />
         <span className="counter step-count">step <b>{a.step}</b></span>
@@ -390,8 +396,8 @@ export function TrainView(props: {
         <label className="field"><input type="checkbox" checked={comparing} onChange={toggleCompare} /> compare two optimizers</label>
       </div>
       <Dock>
-        <button className="primary" onClick={running ? pause : start}>{running ? 'Pause' : 'Run'}</button>
-        <button onClick={stepOnce} disabled={running}>Step</button>
+        <button className="primary" onClick={running ? pause : start} disabled={!running && !sessions.length}>{running ? 'Pause' : 'Run'}</button>
+        <button onClick={stepOnce} disabled={running || !sessions.length}>Step</button>
         <button onClick={reset}>Reset</button>
         <span className="counter">step <b>{a.step}</b></span>
       </Dock>
@@ -471,16 +477,18 @@ export function TrainView(props: {
         <Panel n="⑤" className="span-4" title={P.acts.title} sub={P.acts.explain}>
           <div className="hists">
             {preset.layers.slice(0, -1).map((l) => {
-              const s = a.values[l.act];
+              // before the first step nothing has been computed: the outputs read as zero, not as dead
+              const s = a.step > 0 ? a.values[l.act] : undefined;
               return (
                 <div key={l.label} className="hist">
                   <div className="muted">{l.label}{s ? ` · ${Math.round(s.fracZero * 100)}% zero` : ''}</div>
-                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#7a5bb5')} />}
+                  {s ? <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#7a5bb5')} /> : <div style={{ height: 84 }} />}
                 </div>
               );
             })}
           </div>
-          <Story>{activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</Story>
+          <Story>{a.step === 0 ? 'Not trained yet: press Run or Step, and each layer’s outputs over the dots appear here.'
+            : activationStory(preset.layers.slice(0, -1).map((l) => ({ label: l.label, fracZero: a.values[l.act]?.fracZero ?? 0, std: a.values[l.act]?.std ?? 1 })), relu)}</Story>
         </Panel>
 
         <Panel n="⑥" className="span-12" title={P.inspect.title} sub={P.inspect.explain}

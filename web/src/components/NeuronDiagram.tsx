@@ -48,16 +48,35 @@ interface Line { x1: number; y1: number; x2: number; y2: number; layer: number; 
 
 const POS = '230,97,1', NEG = '33,102,172';
 
+/** Lines drawn between two layers at most: two layers of 64 have 4,096
+ * weights, a grey mesh that takes a phone a second to draw. The strongest
+ * are kept; they are the ones that matter, and they can be told apart. */
+const MOST_LINES = 300;
+
+/** The size of the `n`th largest |value|: weights at least this big are drawn. */
+function cutoff(data: Float32Array, n: number): number {
+  if (data.length <= n) return 0;
+  const a = Float32Array.from(data, Math.abs).sort();
+  return a[a.length - n];
+}
+
+// one small canvas, reused for every neuron's picture: a big network has 130
+let scratch: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData } | null = null;
+
 function drawCell(ctx: CanvasRenderingContext2D, data: ArrayLike<number>, res: number, scale: ColorScale, b: Box) {
-  const tmp = document.createElement('canvas');
-  tmp.width = tmp.height = res;
-  const tctx = tmp.getContext('2d')!;
-  const img = tctx.createImageData(res, res);
+  if (!scratch || scratch.canvas.width !== res) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = res;
+    const c2 = canvas.getContext('2d')!;
+    scratch = { canvas, ctx: c2, img: c2.createImageData(res, res) };
+  }
+  const px = scratch.img.data;
   for (let i = 0; i < res * res; ++i) {
     const c = scale(data[i]);
-    img.data.set([c[0], c[1], c[2], 255], i * 4);
+    px[i * 4] = c[0]; px[i * 4 + 1] = c[1]; px[i * 4 + 2] = c[2]; px[i * 4 + 3] = 255;
   }
-  tctx.putImageData(img, 0, 0);
+  scratch.ctx.putImageData(scratch.img, 0, 0);
+  const tmp = scratch.canvas;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(tmp, b.x, b.y, b.s, b.s);
 }
@@ -101,26 +120,36 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
         const gap = (h - top - bottom) / n;
         for (let j = 0; j < n; ++j) boxes.push({ x: colX(k), y: top + gap * (j + 0.5) - s / 2, s, layer: k, index: j });
       });
-      const at = (k: number, j: number) => boxes.find((b) => b.layer === k && b.index === j)!;
-      // lines: one per weight, width and opacity by size relative to the layer's largest
+      const byLayer: Box[][] = sizes.map(() => []);
+      for (const b of boxes) byLayer[b.layer][b.index] = b;
+      // lines: one per weight, width and opacity by size relative to the
+      // layer's largest. A big network has thousands, so they are drawn in
+      // a few batches: by sign and by twelve steps of size
+      const STEPS = 12;
+      const batches = [POS, NEG].map(() => Array.from({ length: STEPS + 1 }, () => new Path2D()));
       const lines: Line[] = [];
       state.weights.forEach((wt, k) => {
         let max = 0;
         for (const v of wt.data) max = Math.max(max, Math.abs(v));
+        const least = cutoff(wt.data, MOST_LINES);
         for (let i = 0; i < wt.inDim; ++i)
           for (let j = 0; j < wt.outDim; ++j) {
-            const v = wt.data[i * wt.outDim + j], a = at(k, i), b = at(k + 1, j);
+            const v = wt.data[i * wt.outDim + j], a = byLayer[k][i], b = byLayer[k + 1][j];
+            if (Math.abs(v) < least) continue;
             const r = max > 0 ? Math.abs(v) / max : 0;
             const line = { x1: a.x + a.s, y1: a.y + a.s / 2, x2: b.x, y2: b.y + b.s / 2, layer: k, from: i, to: j, w: v };
             lines.push(line);
-            ctx.strokeStyle = `rgba(${v >= 0 ? POS : NEG},${0.15 + 0.75 * r})`;
-            ctx.lineWidth = 0.4 + 3.6 * r;
-            ctx.beginPath();
-            ctx.moveTo(line.x1, line.y1);
-            ctx.lineTo(line.x2, line.y2);
-            ctx.stroke();
+            const path = batches[v >= 0 ? 0 : 1][Math.round(r * STEPS)];
+            path.moveTo(line.x1, line.y1);
+            path.lineTo(line.x2, line.y2);
           }
       });
+      batches.forEach((paths, sign) => paths.forEach((path, q) => {
+        const r = q / STEPS;
+        ctx.strokeStyle = `rgba(${sign === 0 ? POS : NEG},${0.15 + 0.75 * r})`;
+        ctx.lineWidth = 0.4 + 3.6 * r;
+        ctx.stroke(path);
+      }));
       // neurons: inputs show their own coordinate; the rest what they output over the plane
       boxes.forEach((b) => {
         if (b.layer === 0) {
@@ -200,6 +229,8 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
     setHover('');
   };
 
+  // the widest pair of layers whose lines are thinned, by its number of weights
+  const thinned = Math.max(0, ...(state?.weights ?? []).map((w) => w.inDim * w.outDim).filter((n) => n > MOST_LINES));
   return (
     <div className="neurons">
       {/* wider layers get a taller diagram, so every neuron stays at least ~11 px */}
@@ -209,7 +240,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
         {hover.picture && state && (
           <Canvas className="neuron-preview" height={84} draw={(ctx, w, h) => drawField(ctx, w, h, hover.picture!, state.res, divergingScale(1))} />
         )}
-        <span>{hover.text || (state ? 'Point at or tap a neuron or a line to see what it is.' : 'Reading the network…')}</span>
+        <span>{hover.text || (state ? `Point at or tap a neuron or a line to see what it is.${thinned ? ` Between layers this wide, only the ${MOST_LINES} strongest of ${thinned.toLocaleString('en')} weights are drawn.` : ''}` : 'Reading the network…')}</span>
       </div>
     </div>
   );

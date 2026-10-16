@@ -74,12 +74,23 @@ async function alive(p: Preset, what: string) {
     const c = page.locator(phone ? '.dock .counter' : '.transport .counter');
     const back = page.getByRole('button', { name: 'One step back' }).last();
     const fwd = page.getByRole('button', { name: 'One step forward' }).last();
+    // a lab left playing moves by itself: pause it first, as a reader would before stepping
+    const playing = page.locator(phone ? '.dock' : '.transport').getByRole('button', { name: 'Pause', exact: true });
+    if (await playing.count()) { await playing.first().click().catch(() => {}); await sleep(300); }
     // the steps can take a moment to arrive: one of the two must come alive
     if (!(await until(async () => (await fwd.isEnabled()) || (await back.isEnabled())))) return void fail(`${what}: neither step button ever worked`);
-    if (await fwd.isDisabled()) await back.click();   // at the end: step back first
+    if (await fwd.isDisabled()) {   // at the end: step back first, and let it land
+      const end = await num(c);
+      await back.click();
+      if (!(await until(async () => (await num(c)) === end - 1))) return void fail(`${what}: afterwards, a step back did nothing (counter stayed ${await num(c)})`);
+    }
     const before = await num(c);
     await fwd.click();
-    if (!(await until(async () => (await num(c)) === before + 1))) fail(`${what}: afterwards, a step forward did nothing`);
+    if (!(await until(async () => (await num(c)) === before + 1))) {
+      await page.screenshot({ path: `controls-stuck-${p.id}.png` }).catch(() => {});
+      const bar = (await c.first().innerText().catch(() => '?')).replace(/\s+/g, ' ');
+      fail(`${what}: afterwards, a step forward did nothing (counter "${bar}", was ${before}; forward ${await fwd.isEnabled() ? 'enabled' : 'disabled'}; address ${page.url().split('#')[1]})`);
+    }
   } else {
     const c = page.locator(phone ? '.dock .counter' : '.toolbar .step-count');
     const pause = scope().getByRole('button', { name: 'Pause' });
@@ -106,7 +117,12 @@ async function alive(p: Preset, what: string) {
         await sleep(300);
         const b2 = await num(c);
         await scope().getByRole('button', { name: 'Step', exact: true }).click();
-        if (!(await until(async () => (await num(c)) > b2))) fail(`${what}: afterwards, Step did not train (even after Reset)`);
+        if (!(await until(async () => (await num(c)) > b2))) {
+          await page.screenshot({ path: `controls-nostep-${p.id}.png`, fullPage: true }).catch(() => {});
+          const step = scope().getByRole('button', { name: 'Step', exact: true });
+          const banner = await page.locator('.banner').allInnerTexts().catch(() => []);
+          fail(`${what}: afterwards, Step did not train (even after Reset): counter "${await c.first().innerText()}", Step ${await step.isEnabled() ? 'enabled' : 'disabled'}, banner "${banner.join(' / ').slice(0, 120)}", address ${page.url().split('#')[1]}`);
+        }
       }
     }
   }
@@ -135,32 +151,33 @@ async function useEverything(p: Preset | null, label: string) {
       const what = `${label}: ${tag}${type ? `[${type}]` : ''} "${name}"`;
       try {
         if (!(await el.isEnabled())) continue;
-        await el.scrollIntoViewIfNeeded({ timeout: 2000 });
+        // a page busy training can take a moment to answer; 5 s is still a hang
+        await el.scrollIntoViewIfNeeded({ timeout: 5000 });
         if (tag === 'button') {
-          await el.click({ timeout: 3000 });
+          await el.click({ timeout: 5000 });
           used++; await healthy(what);
         } else if (tag === 'select') {
           const values = await el.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
           for (const v of values) {
-            await el.selectOption(v, { timeout: 3000 });
+            await el.selectOption(v, { timeout: 5000 });
             used++; if (!(await healthy(`${what} = "${v}"`))) break;
           }
         } else if (type === 'range') {
           const [min, max, step] = await el.evaluate((e) => [Number((e as HTMLInputElement).min || 0), Number((e as HTMLInputElement).max || 100), Number((e as HTMLInputElement).step) || 1]);
           // the middle, on the slider's own steps
           for (const v of [max, min, min + Math.round((max - min) / 2 / step) * step]) {
-            await el.fill(String(v), { timeout: 3000 });
+            await el.fill(String(v), { timeout: 5000 });
             used++; if (!(await healthy(`${what} = ${v}`))) break;
           }
         } else if (type === 'number') {
           for (const v of ['0', '-1', '1000000', '0.0000001', '0.5', '', '3']) {
-            await el.fill(v, { timeout: 3000 });
+            await el.fill(v, { timeout: 5000 });
             await el.blur();
             used++; if (!(await healthy(`${what} = "${v}"`))) break;
           }
         } else if (type === 'checkbox') {
-          await el.click({ timeout: 3000 }); used++; await healthy(`${what} on`);
-          await el.click({ timeout: 3000 }); used++; await healthy(`${what} off`);
+          await el.click({ timeout: 5000 }); used++; await healthy(`${what} on`);
+          await el.click({ timeout: 5000 }); used++; await healthy(`${what} off`);
         }
       } catch (e) {
         fail(`${what}: could not be used: ${String(e).split('\n')[0].slice(0, 140)}`);

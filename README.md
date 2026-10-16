@@ -54,6 +54,7 @@ node scripts/smoke.ts shots firefox  # every preset in a headless browser: chrom
 node scripts/navigate.ts webkit       # clicks every link, menu entry, variant and Back (164 pages), no reloads
 node scripts/instructions.ts webkit   # follows every lesson's and lab's instructions: what they name is on screen
 PART=0-5 node scripts/controls.ts webkit [phone]  # uses every control on labs 0-4 (PART=lessons: the lessons)
+node scripts/jank.ts                  # how long a tap waits while each lab trains, on an emulated phone
 npm run record            # regenerate the recorded runs in public/recordings
 node scripts/perf.ts      # frame times while training, racing and stepping (after build)
 ```

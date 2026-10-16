@@ -1070,3 +1070,33 @@ ANSWERED
   m and v labels, the loaders (three dots holding the page height),
   Recover, and box names staying readable before the pass reaches them.
   Smoke and instructions (79/79) pass in Chromium; 71 unit tests pass.
+
+------------------------------------------------------------------------
+ENTRY 21   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  Run everything needed without asking.
+
+ANSWERED
+  Ran smoke, instructions and navigate (live, and under all six
+  crippled-browser profiles) in Chromium, Firefox and WebKit, and the
+  every-control test on desktop (3 browsers) and phone (Pixel 7 in
+  Chromium, iPhone 13 in WebKit). They found:
+  1. The training labs froze phones: the neuron diagram drew all 4,096
+     lines between the two 64-wide layers (1.1 s per redraw on the
+     emulated iPhone). It now draws the 300 strongest per pair of layers
+     and says so; lines are batched; neuron pictures share one canvas.
+     The 800 dots are drawn once into their own layer. Longest wait for
+     a tap on the Pixel: 664 ms -> ~160 ms; every lab trains at its speed.
+     scripts/jank.ts measures this.
+  2. The page jumped while training: captions changed line count and the
+     film strip appeared late. Captions now only grow; the strip holds
+     its five places from the start.
+  3. Run, Step and Race were silently ignored while a lab rebuilt after
+     Reset; they are now disabled until it is ready.
+  4. Panel 5 called every neuron dead before the first step (nothing
+     computed yet reads as zero). It now says "Not trained yet".
+  5. A PowerShell edit had garbled x₁ and ’ in the neuron diagram;
+     repaired, and encoding.test.ts now fails on garbled text or BOMs.
+  Test fixes: controls.ts waits for a step back to land, pauses a lab
+  left playing, and allows 5 s for an action on a busy page.

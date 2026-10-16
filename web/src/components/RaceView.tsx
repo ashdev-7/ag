@@ -148,14 +148,14 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
         </div>
       </header>
       <div className="controls toolbar">
-        <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
+        <button className="primary" onClick={running ? pause : run} disabled={!running && !sessions.length}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
         <SpeedControl value={speed} onChange={setSpeed} />
         <span className="counter step-count">step <b>{racers[0].steps.at(-1) ?? 0}</b> of {race.maxSteps}</span>
         <span className="hint">All four start at ({fmt(racers[0].path[0][0])}, {fmt(racers[0].path[0][1])}).</span>
       </div>
       <Dock>
-        <button className="primary" onClick={running ? pause : run}>{running ? 'Pause' : 'Race'}</button>
+        <button className="primary" onClick={running ? pause : run} disabled={!running && !sessions.length}>{running ? 'Pause' : 'Race'}</button>
         <button onClick={() => { pause(); setEpoch((e) => e + 1); }}>Reset</button>
         <span className="counter">step <b>{racers[0].steps.at(-1) ?? 0}</b> of {race.maxSteps}</span>
       </Dock>
