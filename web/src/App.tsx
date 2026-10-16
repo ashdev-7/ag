@@ -67,16 +67,15 @@ export function App() {
   // views report their shareable state, written without adding history
   // entries. Only the view for the page in the address may write: a view
   // that is being left can still finish a step after the reader has moved
-  // on, and its write would put its own address over the page they chose
+  // on, and its write would put its own address over the page they chose.
+  // The check and the write happen together, against the address itself:
+  // a write deferred into a state update could land after a later click
   const updateUrl = useCallback((owner: string, u: Partial<UrlState>) => {
     const here = fromUrlHash(window.location.hash);
     if (here.preset !== owner || here.lesson) return;
-    setUrl((cur) => {
-      if (cur.preset !== owner || cur.lesson) return cur;
-      const next = { ...cur, ...u };
-      history.replaceState(null, '', toUrlHash(next));
-      return next;
-    });
+    const next = { ...here, ...u };
+    history.replaceState(null, '', toUrlHash(next));
+    setUrl(next);
   }, []);
 
   const [banner, setBanner] = useState<Banner | undefined>();
