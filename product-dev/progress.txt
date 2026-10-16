@@ -1012,3 +1012,45 @@ ANSWERED
      entry, variant and Back (164 pages) without reloading; in CI on
      three browsers. Passes locally, on a 4x slower CPU, and on the live
      site in Chromium, Firefox and WebKit.
+
+------------------------------------------------------------------------
+ENTRY 19   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  Every browser must run the labs live; test exhaustively, nothing may
+  break. A dark theme with taste. Instructions that name things not on
+  screen ("click p"): find and fix all of them.
+
+ANSWERED
+  1. Every browser runs live. The engine runs in a worker, or on the page
+     when workers fail; as WebAssembly, or as plain JavaScript (ag-js.mjs,
+     same results to 1.4e-7) when WebAssembly is missing or blocked.
+     .at() polyfill; build target back to Safari 14 / Chrome 87.
+     navigate.ts passes under six crippled-browser profiles in all three
+     browsers.
+  2. Dark theme: navy glass, Space Grotesk and JetBrains Mono, colours
+     chosen by search to pass the colour-blindness test on dark
+     (views/theme.ts holds them all); og.png and splash match.
+  3. Instructions: graph names were ~6 px (fit-to-box zoom); graphs now
+     show at a readable zoom and follow the active box. The mouse wheel
+     scrolls the page instead of zooming the graph. Fixed boxes that did
+     not exist, keyboard-only steps (now the on-screen ⏮ ◀ ▶ ⏭, also in
+     the phone dock), colour words, m and v names, cross-lab links.
+     scripts/instructions.ts follows every instruction in order: 79/79.
+  4. Bugs found by the new tests:
+     - opening a link to the lab already showing kept the old run (a
+       compare run stayed on screen at step 83): every arrival by
+       address now opens the page fresh;
+     - a blown-up run (AdamW, lr 3) blanked the whole page: the gradient
+       caption built "1" + "0".repeat(Infinity). Fixed; a boundary
+       (Recover) now keeps the site and offers "Start it again" if any
+       page ever fails to draw;
+     - a new seed collapsed the page to a line of text for ~250 ms: the
+       loaders are the three dots everywhere and hold the page height.
+  5. scripts/controls.ts uses every control on every page (buttons, every
+     menu option, sliders at both ends and the middle, awkward numbers,
+     checkboxes, every graph box, the pointer over every picture) and
+     checks the lab still works after each; page memory stays flat.
+     1411 controls, 0 failures in Chromium and Firefox; WebKit all but
+     the mlp lab (run stopped for low memory). Phone runs not done yet.
+     Smoke, navigate (164 pages) and instructions pass in all three.
