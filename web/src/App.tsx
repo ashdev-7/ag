@@ -4,6 +4,8 @@
 // seed, so a crash costs the current run and nothing else.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
+import type { BeforeSendEvent } from '@vercel/analytics/react';
 import { createEngineClient } from './engine/client.ts';
 import { createLocalWorker } from './engine/local.ts';
 import type { EngineStatus } from './engine/client.ts';
@@ -22,6 +24,13 @@ import { StepView } from './components/StepView.tsx';
 import { TrainView } from './components/TrainView.tsx';
 
 const MODE_LABEL = { step: 'Step through', train: 'Train', race: 'Race' };
+
+// visitor counts: Vercel Web Analytics (no cookies, no personal data), on the
+// live site only, so local builds and tests request nothing. Pages live after
+// the # in the address, which analytics ignores, so each is reported as a
+// path of its own: /lab/moons, /lesson/descent
+const LIVE = typeof location !== 'undefined' && location.hostname === 'ag-glass-box.vercel.app';
+const stripHash = (event: BeforeSendEvent): BeforeSendEvent => ({ ...event, url: event.url.split('#')[0] });
 
 export function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: 'loading' });
@@ -139,6 +148,10 @@ export function App() {
       <ErrorBanner banner={banner} onDismiss={() => setBanner(undefined)} />
       {/* a page that fails to draw keeps the rest of the site; a new page starts clean */}
       <main><Recover key={`${page}:${visit}`}>{body}</Recover></main>
+      {LIVE && <Analytics
+        route={url.lesson ? '/lesson/[id]' : url.preset ? '/lab/[id]' : '/'}
+        path={url.lesson ? `/lesson/${url.lesson}` : url.preset ? `/lab/${url.preset}` : '/'}
+        beforeSend={stripHash} />}
     </div>
   );
 }

@@ -1134,3 +1134,21 @@ ANSWERED
      byte-identical to before. Switch on Analytics, set the variable,
      redeploy.
   4. LICENSE: all rights reserved, held by the GitHub handle ashdev-7.
+
+------------------------------------------------------------------------
+ENTRY 23   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  Vercel's Analytics page asks for @vercel/analytics; and it warns that a
+  VITE_ variable is exposed to the browser.
+
+ANSWERED
+  The VITE_ value was only an on/off switch, harmless to expose, but no
+  longer needed: @vercel/analytics (React component) now renders in
+  App.tsx on the live hostname only. Pages live after the #, which
+  analytics ignores, so each page is reported as its own path (/lab/moons,
+  /lesson/descent) and the # part is stripped from the reported URL.
+  Checked under the live hostname with a stub script: one page view per
+  page. Vercel serves the script from the first deploy after Analytics is
+  switched on.
+
