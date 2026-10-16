@@ -6,10 +6,11 @@ import './styles.css';
 import { App } from './App.tsx';
 import { Splash } from './components/Splash.tsx';
 
-// visitor counts (Vercel Web Analytics: no cookies, no personal data). Only on
-// the live site, so local builds and tests send nothing; the script is served
-// by Vercel once analytics is switched on for the project
-if (location.hostname === 'ag-glass-box.vercel.app') {
+// visitor counts (Vercel Web Analytics: no cookies, no personal data). Vercel
+// serves the script only once Analytics is switched on for the project, so it
+// loads only in builds made with VITE_ANALYTICS=1 (set in the project's
+// environment variables alongside switching it on), and only on the live site
+if (import.meta.env.VITE_ANALYTICS === '1' && location.hostname === 'ag-glass-box.vercel.app') {
   const s = document.createElement('script');
   s.defer = true;
   s.src = '/_vercel/insights/script.js';
