@@ -55,10 +55,12 @@ const cssVar = (name: string) => {
   return m[1];
 };
 
-const contrastOnWhite = (hex: string) => {
+const luminance = (hex: string) => {
   const [r, g, b] = rgb(hex).map(linear);
-  return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
+/** WCAG contrast of a line colour against the page's background (--bg, dark) */
+const contrastOnPage = (hex: string) => (luminance(hex) + 0.05) / (luminance(cssVar('bg')) + 0.05);
 
 describe('colours', () => {
   it('series colours stay far apart for every kind of colour vision', () => {
@@ -81,8 +83,8 @@ describe('colours', () => {
     }
   });
 
-  it('every line colour is visible on white (contrast at least 3:1)', () => {
+  it('every line colour is visible on the page (contrast at least 3:1)', () => {
     for (const c of [...PALETTE, layerColor(0, 2), layerColor(1, 2), cssVar('forward'), cssVar('backward'), cssVar('update'), cssVar('tangent')])
-      expect(contrastOnWhite(c), c).toBeGreaterThanOrEqual(3);
+      expect(contrastOnPage(c), c).toBeGreaterThanOrEqual(3);
   });
 });

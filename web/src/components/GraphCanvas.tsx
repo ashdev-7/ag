@@ -3,7 +3,7 @@
 // pass the edge carrying gradient is drawn moving against the arrow.
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Background, Controls, Handle, Position, ReactFlow, ReactFlowProvider } from '@xyflow/react';
+import { Background, Controls, Handle, Position, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import type { Edge, Node, NodeProps } from '@xyflow/react';
 import type { GraphSpec, NodeSpec } from '../graph/spec.ts';
 import type { Stats } from '../engine/protocol.ts';
@@ -62,6 +62,9 @@ const OpNode = memo(function OpNode({ data }: NodeProps<Node<OpData>>) {
 });
 
 const nodeTypes = { op: OpNode };
+
+/** The smallest zoom at which a box's name and numbers are comfortable to read. */
+const READABLE = 0.85;
 
 export interface GraphCanvasProps {
   spec: GraphSpec;
@@ -138,17 +141,39 @@ function Inner(props: GraphCanvasProps & { vertical: boolean; touch: boolean }) 
   // scrolls up and down past it. A very big graph is scaled down to stay
   // within about a screen and a half
   const box = useRef<HTMLDivElement>(null);
-  const [boxWidth, setBoxWidth] = useState(0);
+  const [boxSize, setBoxSize] = useState({ w: 0, h: 0 });
+  const boxWidth = boxSize.w;
   useEffect(() => {
-    if (!vertical || !box.current) return;
-    const ro = new ResizeObserver(([e]) => setBoxWidth(e.contentRect.width));
+    if (!box.current) return;
+    const ro = new ResizeObserver(([e]) => setBoxSize({ w: e.contentRect.width, h: e.contentRect.height }));
     ro.observe(box.current);
     return () => ro.disconnect();
-  }, [vertical]);
+  }, []);
   const zoom = vertical && boxWidth
     ? Math.max(0.3, Math.min(1.1, Math.max(boxWidth / layout.width, 0.8), (window.innerHeight * 1.5) / layout.height))
     : 1;
   const phone = vertical && boxWidth > 0;
+
+  // elsewhere, a camera: a graph that fits at a readable size is shown whole;
+  // a bigger one is drawn at a readable zoom and the view glides to each box
+  // as it runs, so names and numbers stay legible. The training view's graph
+  // is an overview and is always shown whole
+  const flow = useReactFlow();
+  const follow = !phone && !props.edgeWeights && boxSize.w > 0 && boxSize.h > 0
+    && Math.min(boxSize.w / layout.width, boxSize.h / layout.height) * 0.92 < READABLE;
+  const centre = (id: string | undefined, duration: number) => {
+    const n = layout.nodes.find((q) => q.id === id) ?? [...layout.nodes].sort((a, b) => (vertical ? a.y - b.y : a.x - b.x))[0];
+    if (n) flow.setCenter(n.x + n.width / 2, n.y + n.height / 2, { zoom: Math.max(flow.getZoom(), READABLE), duration });
+  };
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (phone || !ready || !boxSize.w) return;
+    if (follow) centre(highlight.active ?? props.selected, 0);
+    else flow.fitView({ padding: 0.08, maxZoom: 1.4 });
+  }, [ready, follow, phone, boxSize.w, boxSize.h, layout]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (follow && highlight.active) centre(highlight.active, 350);
+  }, [highlight.active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={box} className={phone ? 'graph-box graph-scroll' : 'graph-box'}>
@@ -157,20 +182,23 @@ function Inner(props: GraphCanvasProps & { vertical: boolean; touch: boolean }) 
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
-      fitView={!phone}
-      fitViewOptions={{ padding: 0.08, maxZoom: 1.4 }}
+      onInit={() => setReady(true)}
       viewport={phone ? { x: Math.max(0, (boxWidth - layout.width * zoom) / 2), y: 0, zoom } : undefined}
       onNodeClick={(_, n) => props.onSelect(n.id === props.selected ? undefined : n.id)}
       onPaneClick={() => props.onSelect(undefined)}
       nodesConnectable={false}
       minZoom={0.1}
       panOnDrag={!touch && !phone}
-      zoomOnScroll={!phone}
+      // the wheel scrolls the page, never the graph: a reader scrolling past
+      // must not find the graph zooming under the pointer. Pinch, ctrl + wheel
+      // and the + − buttons zoom
+      zoomOnScroll={false}
+      zoomActivationKeyCode="Control"
       zoomOnPinch={!phone}
       zoomOnDoubleClick={!phone}
-      preventScrolling={!touch && !phone}
+      preventScrolling={false}
     >
-      <Background gap={20} color="#eee" />
+      <Background gap={22} size={1.2} color="rgba(148,170,220,0.16)" />
       {!phone && <Controls showInteractive={false} />}
     </ReactFlow>
     </div>

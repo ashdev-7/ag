@@ -3,13 +3,13 @@
 
 import type { Stats } from '../engine/protocol.ts';
 
-export type RGB = [number, number, number];
+import { AXIS, BLUE as NEG, GRID, INK, INK_2, LAYER_RAMP, MID, MUTED, ORANGE as POS, SURFACE_HIGH, SURFACE_LOW } from './theme.ts';
+import type { RGB } from './theme.ts';
+
+export type { RGB };
 export type ColorScale = (value: number) => RGB;
 
-// blue - white - orange: safe for red-green colour blindness
-const NEG: RGB = [33, 102, 172];
-const MID: RGB = [247, 247, 247];
-const POS: RGB = [230, 97, 1];
+// blue - dark - orange (theme.ts): safe for red-green colour blindness
 
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
@@ -31,10 +31,10 @@ export function divergingScale(maxAbs: number): ColorScale {
 export function surfaceScale(lo: number, hi: number): ColorScale {
   const span = Math.log1p(Math.max(hi - lo, 1e-9));
   return (v) => {
-    if (!Number.isFinite(v)) return [250, 250, 252];
+    if (!Number.isFinite(v)) return SURFACE_HIGH;
     const t = Math.max(0, Math.min(1, Math.log1p(Math.max(0, v - lo)) / span));
-    const band = Math.floor(t * 10) % 2 === 0 ? 0 : 0.04;
-    return mix([30, 40, 100], [250, 250, 252], Math.min(1, Math.sqrt(t) + band));
+    const band = Math.floor(t * 10) % 2 === 0 ? 0 : 0.07;
+    return mix(SURFACE_LOW, SURFACE_HIGH, Math.min(1, Math.sqrt(t) + band));
   };
 }
 
@@ -84,7 +84,9 @@ export function drawTensor(ctx: CanvasRenderingContext2D, w: number, h: number, 
       ctx.fillStyle = css(scale(v));
       ctx.fillRect(c * cw + 0.5, r * ch + 0.5, cw - 1, ch - 1);
       if (cw > 34 && ch > 14) {
-        ctx.fillStyle = '#111';
+        // light numbers on dark cells, dark on bright ones
+        const [r0, g0, b0] = scale(v);
+        ctx.fillStyle = 0.299 * r0 + 0.587 * g0 + 0.114 * b0 > 150 ? '#0b0f1a' : INK;
         ctx.fillText(fmt(v), c * cw + cw / 2, r * ch + ch / 2);
       }
     }
@@ -116,7 +118,7 @@ export function drawPoints(ctx: CanvasRenderingContext2D, w: number, h: number, 
     ctx.arc(px, py, i === highlight ? 5 : 3, 0, Math.PI * 2);
     ctx.fillStyle = css(labels[i] ? POS : NEG);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = 'rgba(232,238,249,0.9)';
     ctx.lineWidth = 1;
     ctx.stroke();
   }
@@ -143,7 +145,7 @@ export function drawHistogram(ctx: CanvasRenderingContext2D, w: number, h: numbe
 
 /** Chart text: the page's own font, small and quiet. */
 export const CHART_FONT = '500 10.5px Inter, system-ui, sans-serif';
-const TICK = '#8b8b98', GRID = '#eeeef3';
+const TICK = MUTED;
 
 export interface Series { label: string; color: string; x: number[]; y: (number | null)[]; dash?: boolean }
 
@@ -174,7 +176,7 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
     });
   // reference lines stay in view
   if (Number.isFinite(x0)) for (const r of opts.refs ?? []) if (!logY || r.y > 0) { y0 = Math.min(y0, ty(r.y)); y1 = Math.max(y1, ty(r.y)); }
-  ctx.strokeStyle = '#dcdce4';
+  ctx.strokeStyle = AXIS;
   ctx.beginPath(); ctx.moveTo(pad.l, pad.t + ph + 0.5); ctx.lineTo(pad.l + pw, pad.t + ph + 0.5); ctx.stroke();
   if (!Number.isFinite(x0)) return;
   if (x1 === x0) x1 = x0 + 1;
@@ -210,11 +212,11 @@ export function drawLines(ctx: CanvasRenderingContext2D, w: number, h: number, s
   for (const r of opts.refs ?? []) {
     if (logY && r.y <= 0) continue;
     const yy = Y(r.y);
-    ctx.strokeStyle = '#a8a8b4';
+    ctx.strokeStyle = AXIS;
     ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#5c5c68';
+    ctx.fillStyle = INK_2;
     ctx.textAlign = 'right';
     // above the line, or below it when the line is near the top
     const above = yy - pad.t > 14;
@@ -249,10 +251,10 @@ export function drawPaths(ctx: CanvasRenderingContext2D, w: number, h: number,
     if (!p.points.length) continue;
     ctx.beginPath();
     p.points.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
-    // a light halo first, so dark paths stay visible in the dark valley
+    // a dark halo first, so each path stands off the landscape
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(5,7,13,0.85)';
+    ctx.lineWidth = 4.5;
     ctx.stroke();
     ctx.strokeStyle = p.color;
     ctx.lineWidth = 2;
@@ -262,7 +264,8 @@ export function drawPaths(ctx: CanvasRenderingContext2D, w: number, h: number,
     ctx.arc(X(ex), Y(ey), 5, 0, Math.PI * 2);
     ctx.fillStyle = p.color;
     ctx.fill();
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 }
@@ -271,12 +274,12 @@ export function drawPaths(ctx: CanvasRenderingContext2D, w: number, h: number,
 // chosen so every pair stays far apart (CIELAB distance > 25) with normal
 // vision and simulated protanopia, deuteranopia and tritanopia; checked in
 // colors.test.ts. no view shows more than four such series at once
-export const PALETTE = ['#e66101', '#2166ac', '#cc79a7', '#882255'];
+export { PALETTE } from './theme.ts';
 
-// layers are ordered, so they get a ramp instead: dark indigo for the first
-// layer to orange for the last. lightness rises along it under every kind of
-// colour vision, so depth reads the same for everyone
-const RAMP: RGB[] = [[45, 0, 75], [123, 50, 148], [230, 97, 1]];
+// layers are ordered, so they get a ramp instead: violet for the first layer
+// to orange for the last (theme.ts). lightness rises along it under every
+// kind of colour vision, so depth reads the same for everyone
+const RAMP = LAYER_RAMP;
 
 /** Colour of layer `i` of `n`. */
 export function layerColor(i: number, n: number): string {

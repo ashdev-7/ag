@@ -8,6 +8,7 @@ import type { OptimConfig } from '../engine/protocol.ts';
 import type { Preset } from '../graph/presets.ts';
 import { drawField, drawLines, drawPaths, fmt, PALETTE, surfaceScale } from '../views/draw.ts';
 import { Canvas } from './Canvas.tsx';
+import { BG, GOLD, INK } from '../views/theme.ts';
 import { describe } from './ErrorBanner.tsx';
 import type { Banner } from './ErrorBanner.tsx';
 import { Legend, OptimControls } from './TrainView.tsx';
@@ -124,7 +125,7 @@ export function RaceView(props: { client: EngineClient; preset: Preset; seed: nu
     setRacers((rs) => rs.map((r, k) => (k === i ? { ...r, optim: o } : r)));
   };
 
-  if (!surface || !racers.length) return <div className="loading">Sweeping the loss surface…</div>;
+  if (!surface || !racers.length) return <div className="loading" role="status" aria-label="Sweeping the loss surface"><span /><span /><span /></div>;
   let lo = Infinity, hi = -Infinity;
   surface.data.forEach((v) => { if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } });
 
@@ -193,14 +194,14 @@ function drawMarkers(ctx: CanvasRenderingContext2D, w: number, h: number, d: { x
   const label = (text: string, x: number, y: number) => {
     ctx.font = '500 12px Inter, system-ui, sans-serif';
     ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = BG;
     ctx.strokeText(text, x + 9, y + 4);
-    ctx.fillStyle = '#1d1d1f';
+    ctx.fillStyle = INK;
     ctx.fillText(text, x + 9, y + 4);
   };
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#1d1d1f';
-  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = INK;
+  ctx.fillStyle = BG;
   ctx.beginPath();
   ctx.arc(X(start[0]), Y(start[1]), 6, 0, Math.PI * 2);
   ctx.fill();
@@ -210,9 +211,9 @@ function drawMarkers(ctx: CanvasRenderingContext2D, w: number, h: number, d: { x
     ctx.font = '18px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = BG;
     ctx.strokeText('★', X(gx), Y(gy) + 6);
-    ctx.fillStyle = '#c8a400';
+    ctx.fillStyle = GOLD;
     ctx.fillText('★', X(gx), Y(gy) + 6);
     ctx.textAlign = 'left';
     label('lowest point', X(gx) + 2, Y(gy));

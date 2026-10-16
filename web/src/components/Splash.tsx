@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { divergingScale } from '../views/draw.ts';
+import { BLUE, hex, ORANGE } from '../views/theme.ts';
 
 const KEY = 'ag-splash-seen';
 const EXIT_AT = 2300, EXIT_MS = 450;
@@ -105,9 +106,9 @@ export function Splash() {
         ctx.globalAlpha = Math.min(1, t * 2);
         ctx.beginPath();
         ctx.arc(px(p.sx + (p.x - p.sx) * t), py(p.sy + (p.y - p.sy) * t), r, 0, Math.PI * 2);
-        ctx.fillStyle = p.c ? '#e66101' : '#2166ac';
+        ctx.fillStyle = p.c ? hex(ORANGE) : hex(BLUE);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.strokeStyle = 'rgba(232,238,249,0.9)';
         ctx.lineWidth = 1.25;
         ctx.stroke();
       }
