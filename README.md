@@ -56,7 +56,8 @@ node scripts/instructions.ts webkit   # follows every lesson's and lab's instruc
 PART=0-5 node scripts/controls.ts webkit [phone]  # uses every control on labs 0-4 (PART=lessons: the lessons)
 node scripts/jank.ts                  # how long a tap waits while each lab trains, on an emulated phone
 node scripts/serve.ts                 # dist/ with the live site's security headers (vercel.json), on :4192
-node scripts/promo.ts out.mp4         # the 15-second promo video, 1080p (needs: pip install imageio-ffmpeg)
+node scripts/promo.ts out.mp4 [vertical]  # the 15-second promo, 1920x1080 or 1080x1920, with its sound
+                          # (needs: pip install imageio-ffmpeg numpy scipy)
 npm run record            # regenerate the recorded runs in public/recordings
 node scripts/perf.ts      # frame times while training, racing and stepping (after build)
 ```

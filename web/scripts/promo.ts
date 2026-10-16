@@ -1,11 +1,14 @@
 // A 15-second promo video, recorded from the real site: it opens with the
 // splash, a cursor clicks "Watch a network train", presses Run, turns up the
 // speed, and the page settles on the network and its decision boundary while
-// it learns. Frames come from the browser's screencast at 1920x1080 and are
-// encoded to H.264 by ffmpeg (pip install imageio-ffmpeg), the format X,
-// LinkedIn, Reddit and Product Hunt accept.
+// it learns; then the address. Frames come from the browser's screencast and
+// are encoded to H.264 by ffmpeg (pip install imageio-ffmpeg), the format X,
+// LinkedIn, Reddit and Product Hunt accept. The sound is made by
+// promo_audio.py from the moments recorded here, so every tap lands on its
+// click (needs numpy and scipy).
 //
-//   npm run build && node scripts/promo.ts out.mp4
+//   npm run build && node scripts/promo.ts out.mp4             1920x1080, a desktop and a cursor
+//   npm run build && node scripts/promo.ts out.mp4 vertical    1080x1920, a phone and a finger
 
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,8 +18,11 @@ import { chromium } from 'playwright';
 import type { Locator, Page } from 'playwright';
 
 const out = resolve(process.argv[2] ?? 'promo.mp4');
+const vertical = process.argv[3] === 'vertical';
 const SECONDS = 15;
-const W = 1440, H = 810, SCALE = 4 / 3;   // drawn at 1440x810, captured at 1920x1080
+// drawn at a page size, captured at 1080p
+const W = vertical ? 405 : 1440, H = vertical ? 720 : 810, SCALE = vertical ? 8 / 3 : 4 / 3;
+const OUT_W = Math.round(W * SCALE), OUT_H = Math.round(H * SCALE);
 const PORT = 4188;
 const base = `http://localhost:${PORT}/`;
 const win = process.platform === 'win32';
@@ -24,16 +30,20 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ffmpeg = execFileSync('python', ['-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())']).toString().trim();
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', detached: !win });
 
-// a visible cursor: the screencast does not draw the real one. An arrow that
-// follows the mouse, with a soft ring on each click
-function cursor() {
+// a visible pointer: the screencast does not draw the real one. On a desktop
+// an arrow that follows the mouse; on a phone a fingertip. A soft ring on each press
+function pointer(finger: boolean) {
   addEventListener('DOMContentLoaded', () => {
     const c = document.createElement('div');
     c.id = 'promo-cursor';
-    c.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M3 2 L3 21 L8.2 16.4 L11.6 24 L15 22.5 L11.7 15 L19 15 Z" fill="#1d1d1f" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
-    Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: '99999', pointerEvents: 'none', opacity: '0', transition: 'opacity .3s', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.25))' });
+    c.innerHTML = finger
+      ? '<div style="width:34px;height:34px;border-radius:50%;background:rgba(29,29,31,.22);border:2px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.18)"></div>'
+      : '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M3 2 L3 21 L8.2 16.4 L11.6 24 L15 22.5 L11.7 15 L19 15 Z" fill="#1d1d1f" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: '99999', pointerEvents: 'none', opacity: '0', transition: 'opacity .3s',
+      filter: finger ? 'none' : 'drop-shadow(0 2px 3px rgba(0,0,0,.25))' });
     document.body.appendChild(c);
-    addEventListener('mousemove', (e) => { c.style.transform = `translate(${e.clientX - 3}px, ${e.clientY - 2}px)`; }, true);
+    const [dx, dy] = finger ? [17, 17] : [3, 2];
+    addEventListener('mousemove', (e) => { c.style.transform = `translate(${e.clientX - dx}px, ${e.clientY - dy}px)`; }, true);
     addEventListener('mousedown', (e) => {
       const r = document.createElement('div');
       Object.assign(r.style, { position: 'fixed', left: `${e.clientX - 18}px`, top: `${e.clientY - 18}px`, width: '36px', height: '36px', borderRadius: '50%',
@@ -45,10 +55,10 @@ function cursor() {
   });
 }
 
-let mouse = { x: W * 0.6, y: H * 0.36 };   // starts over the hero, away from anything that lights up
+let mouse = vertical ? { x: W * 0.7, y: H * 0.62 } : { x: W * 0.6, y: H * 0.36 };   // starts away from anything that lights up
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** Glides the cursor to (x, y) over `ms`, the way a hand moves: fast in the middle. */
+/** Glides the pointer to (x, y) over `ms`, the way a hand moves: fast in the middle. */
 async function glide(page: Page, x: number, y: number, ms: number) {
   const from = { ...mouse }, t0 = Date.now();
   for (;;) {
@@ -65,82 +75,108 @@ async function centre(l: Locator) {
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 }
 
-/** Scrolls the page smoothly by `dy` over `ms`, as a trackpad would. */
-const scrollBy = (page: Page, dy: number, ms: number) => page.evaluate(([dy, ms]) => new Promise<void>((done) => {
+/** Scrolls the page smoothly to `y` over `ms`, as a trackpad or a flick would. */
+const scrollTo = (page: Page, y: number, ms: number) => page.evaluate(([y1, ms]) => new Promise<void>((done) => {
   const y0 = scrollY, t0 = performance.now();
   const f = (now: number) => {
     const t = Math.min(1, (now - t0) / ms);
-    scrollTo(0, y0 + dy * (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2));
+    window.scrollTo(0, y0 + (y1 - y0) * (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2));
     if (t < 1) requestAnimationFrame(f); else done();
   };
   requestAnimationFrame(f);
-}), [dy, ms] as const);
+}), [y, ms] as const);
+
+/** Where an element sits on the page (not the screen). */
+const pageY = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().top + scrollY);
 
 const frames: { data: Buffer; t: number }[] = [];
+// moments for the sound, in wall-clock seconds; made relative to the first frame below
+const moments = { splash: 0, taps: [] as number[], drag: [0, 0], train: [0, 0], card: 0 };
+const now = () => Date.now() / 1000;
+const press = async (page: Page) => { moments.taps.push(now()); await page.mouse.down(); await sleep(90); await page.mouse.up(); };
+
 try {
   for (let i = 0; i < 40; ++i) { try { if ((await fetch(base)).ok) break; } catch { /* not up yet */ } await sleep(250); }
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE });
-  await ctx.addInitScript(cursor);
+  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE, isMobile: vertical });
+  await ctx.addInitScript(pointer, vertical);
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
   cdp.on('Page.screencastFrame', (f) => {
-    frames.push({ data: Buffer.from(f.data, 'base64'), t: f.metadata.timestamp ?? Date.now() / 1000 });
+    frames.push({ data: Buffer.from(f.data, 'base64'), t: f.metadata.timestamp ?? now() });
     void cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId });
   });
   await page.goto('about:blank');
-  await cdp.send('Page.startScreencast', { format: 'png', maxWidth: Math.round(W * SCALE), maxHeight: Math.round(H * SCALE), everyNthFrame: 1 });
+  await cdp.send('Page.startScreencast', { format: 'png', maxWidth: OUT_W, maxHeight: OUT_H, everyNthFrame: 1 });
   const start = Date.now();
   const at = async (s: number) => { const wait = start + s * 1000 - Date.now(); if (wait > 0) await sleep(wait); };
+  const show = (on: boolean) => page.evaluate((on) => { document.getElementById('promo-cursor')!.style.opacity = on ? '1' : '0'; }, on);
 
   // 0 s: the site opens on its splash
   await page.goto(base);
+  await page.waitForSelector('.splash');
+  moments.splash = now();
   await page.mouse.move(mouse.x, mouse.y);
-  // 3 s: the home page; the cursor appears and goes to "Watch a network train"
+  // 3 s: the home page; the pointer appears, once the splash has fully gone
   await at(3.0);
-  await page.waitForFunction(() => !document.querySelector('.splash'));   // only once the splash has fully gone
-  await page.evaluate(() => { document.getElementById('promo-cursor')!.style.opacity = '1'; });
+  await page.waitForFunction(() => !document.querySelector('.splash'));
+  await show(true);
   const watch = page.getByRole('link', { name: 'Watch a network train' });
   const w = await centre(watch);
   await glide(page, w.x, w.y, 1200);
   await at(4.5);
-  await page.mouse.down(); await sleep(90); await page.mouse.up();
-  // the hero's animation can still be settling the layout: if the click missed, click the link itself
+  await press(page);
+  // the hero's animation can still be settling the layout: if the press missed, click the link itself
   if (!(await page.waitForURL(/preset=moons/, { timeout: 1500 }).then(() => true, () => false))) await watch.click();
-  await page.waitForURL(/preset=moons/);
-  // the lab: press Run
   await page.waitForFunction(() => document.querySelector('.app')?.getAttribute('data-engine') === 'ready' && document.querySelector('.train-view'));
-  const run = page.locator('.toolbar').getByRole('button', { name: 'Run' });
+
+  // the lab: press Run (on a phone, in the bar along the bottom)
+  const run = page.locator(vertical ? '.dock' : '.toolbar').getByRole('button', { name: 'Run' });
   await run.waitFor();
   const r = await centre(run);
   await glide(page, r.x, r.y, 750);
   await at(6.1);
-  await page.mouse.down(); await sleep(90); await page.mouse.up();
-  // turn the speed up: drag the slider most of the way
+  await press(page);
+  moments.train[0] = now();
+  // turn the speed up: drag the slider from 20 to 100 steps a second
   const slider = (await page.getByLabel('Training speed').boundingBox())!;
-  const knobX = slider.x + slider.width * (4 / 10);   // 20 steps a second sits at 4 of 10
-  await glide(page, knobX, slider.y + slider.height / 2, 550);
+  await glide(page, slider.x + slider.width * (4 / 10), slider.y + slider.height / 2, 550);
+  moments.taps.push(now());
+  moments.drag[0] = now();
   await page.mouse.down();
-  await glide(page, slider.x + slider.width * (6 / 10), slider.y + slider.height / 2, 600);   // 100 steps a second
+  await glide(page, slider.x + slider.width * (6 / 10), slider.y + slider.height / 2, 600);
   await page.mouse.up();
+  moments.drag[1] = now();
+
   // the network and its decision boundary, while it learns
   await at(7.9);
-  const grid = (await page.locator('.train-grid').boundingBox())!;
-  void scrollBy(page, grid.y - 70, 1300);
-  await glide(page, W * 0.97, H * 0.5, 1300);   // out of the way, then gone
-  await page.evaluate(() => { document.getElementById('promo-cursor')!.style.opacity = '0'; });
+  if (vertical) {
+    // a phone shows one panel at a time: the boundary bending, then the network that bent it
+    await show(false);
+    await scrollTo(page, (await pageY(page.locator('.train-grid > *').nth(1))) - 64, 1300);
+    await at(11.3);
+    await scrollTo(page, (await pageY(page.locator('.train-grid > *').nth(0))) - 64, 1100);
+  } else {
+    void scrollTo(page, (await pageY(page.locator('.train-grid'))) - 70, 1300);
+    await glide(page, W * 0.97, H * 0.5, 1300);   // out of the way, then gone
+    await show(false);
+  }
+
   // 13 s: the address, over the trained network
   await at(13.0);
-  await page.evaluate(() => {
+  moments.card = now();
+  moments.train[1] = now();
+  await page.evaluate((vertical) => {
+    const k = vertical ? 0.62 : 1;
     const card = document.createElement('div');
-    card.innerHTML = '<div style="font:700 64px Inter,system-ui,sans-serif;letter-spacing:-0.02em;color:#1d1d1f">ag<span style="color:#5e3c99">·glass</span></div>'
-      + '<div style="font:500 26px Inter,system-ui,sans-serif;color:#3d3d48;margin-top:10px">See inside a neural network</div>'
-      + '<div style="font:600 24px Inter,system-ui,sans-serif;color:#5e3c99;margin-top:28px;padding:10px 22px;border:1.5px solid rgba(94,60,153,.35);border-radius:999px;background:#fff">ag-glass-box.vercel.app</div>';
+    card.innerHTML = `<div style="font:700 ${64 * k}px Inter,system-ui,sans-serif;letter-spacing:-0.02em;color:#1d1d1f">ag<span style="color:#5e3c99">·glass</span></div>`
+      + `<div style="font:500 ${26 * k}px Inter,system-ui,sans-serif;color:#3d3d48;margin-top:10px">See inside a neural network</div>`
+      + `<div style="font:600 ${24 * k}px Inter,system-ui,sans-serif;color:#5e3c99;margin-top:${28 * k}px;padding:${10 * k}px ${22 * k}px;border:1.5px solid rgba(94,60,153,.35);border-radius:999px;background:#fff">ag-glass-box.vercel.app</div>`;
     Object.assign(card.style, { position: 'fixed', inset: '0', zIndex: '99997', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(247,247,250,.9)', backdropFilter: 'blur(3px)', opacity: '0', transition: 'opacity .6s ease' });
     document.body.appendChild(card);
     requestAnimationFrame(() => { card.style.opacity = '1'; });
-  });
+  }, vertical);
   await at(SECONDS + 0.2);
   await cdp.send('Page.stopScreencast');
   await browser.close();
@@ -163,8 +199,18 @@ kept.forEach((f, i) => {
 });
 list += `file 'f${String(kept.length - 1).padStart(5, '0')}.png'\n`;
 writeFileSync(join(dir, 'list.txt'), list);
-execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'list.txt'),
-  '-vf', 'fps=30,scale=1920:1080:flags=lanczos,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17',
-  '-movflags', '+faststart', '-t', String(SECONDS), out], { cwd: dir, stdio: 'inherit' });
+
+// the sound, from the same clock as the frames
+const rel = (t: number) => Math.round((t - t0) * 1000) / 1000;
+const events = {
+  duration: SECONDS, splash: rel(moments.splash), logo: rel(moments.splash) + 1.25,
+  taps: moments.taps.map(rel), drag: moments.drag.map(rel), train: moments.train.map(rel), card: rel(moments.card),
+};
+writeFileSync(join(dir, 'events.json'), JSON.stringify(events));
+execFileSync('python', [join(import.meta.dirname, 'promo_audio.py'), join(dir, 'events.json'), join(dir, 'sound.wav')], { stdio: 'inherit' });
+
+execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'list.txt'), '-i', join(dir, 'sound.wav'),
+  '-vf', `fps=30,scale=${OUT_W}:${OUT_H}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '17',
+  '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-t', String(SECONDS), out], { cwd: dir, stdio: 'inherit' });
 rmSync(dir, { recursive: true, force: true });
-console.log(`${kept.length} frames -> ${out}`);
+console.log(`${kept.length} frames, sound at ${JSON.stringify(events)} -> ${out}`);
