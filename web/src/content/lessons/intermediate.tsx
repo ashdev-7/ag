@@ -40,7 +40,7 @@ export const INTERMEDIATE: Lesson[] = [
     ],
     labs: [{
       preset: 'broadcast', hash: 'pass=reverse', label: 'A bias added to every row',
-      steps: [<>Press End, then click <code>x + b</code>: its gradient is a 3 × 2 grid.</>, <>Click <code>b</code>: its 2 numbers are the column sums of that grid.</>, <>Switch to <i>Single numbers</i> to see each <code>b</code> element feeding three adds.</>],
+      steps: [<>Press ⏭ (jump to the end), then click <code>x + b</code>: its gradient is a 3 × 2 grid.</>, <>Click <code>b</code>: its 2 numbers are the column sums of that grid.</>, <>Switch to <i>Single numbers</i> to see each <code>b</code> element feeding three adds.</>],
     }],
   },
 
@@ -164,7 +164,7 @@ export const INTERMEDIATE: Lesson[] = [
     labs: [
       {
         preset: 'mlp', hash: 'pass=reverse', label: 'Softmax and cross-entropy, step by step',
-        steps: [<>Press End. Click <code>logits</code> and <code>p</code> to compare raw scores with probabilities.</>, <>Click <code>logits</code> again after the backward pass: its gradient is <code>(p − y) / 4</code>, divided by 4 because the loss averages over 4 points.</>],
+        steps: [<>Press ⏭ (jump to the end). Click <code>logits</code> and <code>p</code> to compare raw scores with probabilities.</>, <>Click <code>logits</code> again after the backward pass: its gradient is <code>(p − y) / 4</code>, divided by 4 because the loss averages over 4 points.</>],
       },
       {
         preset: 'moons', label: 'Watch the loss leave 0.69',
@@ -309,7 +309,7 @@ export const INTERMEDIATE: Lesson[] = [
     ],
     labs: [{
       preset: 'detach', hash: 'pass=reverse', label: 'Cut one path',
-      steps: [<>Press End: <code>∂d/∂a = 1</code>, not 4. The path through <code>detach(a)</code> no longer counts.</>, <>Compare with <i>d = a·b + a</i>, where both paths count.</>],
+      steps: [<>Press ⏭ (jump to the end): <code>∂d/∂a = 1</code>, not 4. The path through <code>detach(a)</code> no longer counts.</>, <>Compare with the <a href="#preset=expression&pass=reverse">d = a·b + a</a> lab, where both paths count.</>],
     }],
   },
 ];

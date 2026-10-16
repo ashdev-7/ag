@@ -11,6 +11,7 @@ import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../e
 import type { Preset } from '../graph/presets.ts';
 import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, layerColor, maxAbs, PALETTE } from '../views/draw.ts';
 import type { Series } from '../views/draw.ts';
+import { BLUE, hex, MID, ORANGE, RED, VIOLET } from '../views/theme.ts';
 import type { Highlight, UrlState } from '../views/graph.ts';
 import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
@@ -319,7 +320,7 @@ export function TrainView(props: {
   const nodeStats = useMemo(() => ({ values: runs[0]?.values ?? {}, grads: runs[0]?.grads ?? {} }), [runs]);
   const graphStats = useThrottled(nodeStats, running ? 100 : 0);
 
-  if (!runs.length) return <div className="loading">Building the network…</div>;
+  if (!runs.length) return <div className="loading" role="status" aria-label="Building the network"><span /><span /><span /></div>;
   const a = runs[0];
   const acc = a.grid && data ? accuracy(a.grid, DOMAIN, data) : null;
   const nowNorms = preset.layers.map((l) => ({ label: l.label, norm: a.grads[l.weight]?.l2 ?? 0 }));
@@ -435,9 +436,9 @@ export function TrainView(props: {
               ))}
             </div>
             <div className="key">
-              <span><i style={{ background: '#e66101' }} />says orange</span>
-              <span><i style={{ background: '#2166ac' }} />says blue</span>
-              <span><i style={{ background: '#f7f7f7', border: '1px solid #ccc' }} />unsure</span>
+              <span><i style={{ background: hex(ORANGE) }} />says orange</span>
+              <span><i style={{ background: hex(BLUE) }} />says blue</span>
+              <span><i style={{ background: hex(MID), border: '1px solid rgba(148,170,220,0.4)' }} />unsure</span>
               <span><i className="dot" />a real dot</span>
             </div>
             {filmstrip}
@@ -475,7 +476,7 @@ export function TrainView(props: {
               return (
                 <div key={l.label} className="hist">
                   <div className="muted">{l.label}{s ? ` · ${Math.round(s.fracZero * 100)}% zero` : ''}</div>
-                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#7a5bb5')} />}
+                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? RED : VIOLET)} />}
                 </div>
               );
             })}
@@ -492,11 +493,12 @@ export function TrainView(props: {
           }>
           {selected && inspect ? (
             <div className="inspect-grid">
-              {([['weights', inspect.value], ['their corrections (gradients)', inspect.grad], ['optimizer memory: average correction', inspect.m], ['optimizer memory: average squared correction', inspect.v]] as const)
-                .filter(([, d]) => d && maxAbs(d) > 0)
-                .map(([label, d]) => (
+              {([['weights', '', inspect.value], ['their corrections (gradients)', '', inspect.grad],
+                ['the optimizer’s average correction', 'm', inspect.m], ['the optimizer’s average squared correction', 'v', inspect.v]] as const)
+                .filter(([, , d]) => d && maxAbs(d) > 0)
+                .map(([label, name, d]) => (
                   <div key={label}>
-                    <div className="muted">{label} · largest {fmt(maxAbs(d!))}</div>
+                    <div className="muted">{name && <><code>{name}</code> </>}{label} · largest {fmt(maxAbs(d!))}</div>
                     <Canvas height={Math.min(140, Math.max(24, (inspect.shape.length >= 2 ? inspect.shape[0] : 1) * 14))}
                       draw={(ctx, w, h) => drawTensor(ctx, w, h, d!, inspect.shape, divergingScale(maxAbs(d!)))} />
                   </div>

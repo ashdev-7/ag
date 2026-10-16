@@ -51,7 +51,7 @@ export const BEGINNER: Lesson[] = [
     ],
     labs: [{
       preset: 'neuron', hash: 'pass=forward', label: 'One neuron, forward',
-      steps: [<>Press → to compute the boxes one at a time: <code>x·w</code>, then <code>+ b</code>, then <code>tanh</code>.</>, <>The blue numbers are values. <code>w</code> and <code>b</code> (purple) are the knobs; <code>x</code> (grey) is the input.</>],
+      steps: [<>Press ▶ (one step) to compute the boxes one at a time: <code>x·w</code>, then <code>z</code> (adds <code>b</code>), then <code>out</code> (the tanh of <code>z</code>).</>, <>The blue numbers are values. <code>w</code> and <code>b</code> (violet boxes) are the knobs; <code>x</code> (grey box) is the input.</>],
     }],
   },
 
@@ -104,7 +104,7 @@ export const BEGINNER: Lesson[] = [
     ],
     labs: [{
       preset: 'neuron', hash: 'pass=forward', label: 'The loss of one neuron',
-      steps: [<>Press End. The last box, <code>loss</code>, is <code>(out − 0.5)²</code>: how far the neuron’s output is from the target 0.5, squared.</>, <>Note it down: in the gradient-descent lesson you will watch it shrink.</>],
+      steps: [<>Press ⏭ (jump to the end). The last box, <code>loss</code>, is <code>(out − 0.5)²</code>: how far the neuron’s output is from the target 0.5, squared.</>, <>Note it down: in the gradient-descent lesson you will watch it shrink.</>],
     }],
   },
 
@@ -151,7 +151,7 @@ export const BEGINNER: Lesson[] = [
     ],
     labs: [{
       preset: 'expression', hash: 'pass=reverse', label: 'Read gradients off a graph',
-      steps: [<>Press End. <code>∂d/∂a = 4</code> and <code>∂d/∂b = 2</code>.</>, <>Check by hand: nudging <code>b</code> from 3 to 3.01 changes <code>d = a·b + a</code> by 0.02 = 2 × 0.01.</>],
+      steps: [<>Press ⏭ (jump to the end). <code>∂d/∂a = 4</code> and <code>∂d/∂b = 2</code>.</>, <>Check by hand: nudging <code>b</code> from 3 to 3.01 changes <code>d = a·b + a</code> by 0.02 = 2 × 0.01.</>],
     }],
   },
 
@@ -204,7 +204,7 @@ export const BEGINNER: Lesson[] = [
       },
       {
         preset: 'neuron', hash: 'pass=train', label: 'Training steps on one neuron',
-        steps: [<>Press End: the last steps update <code>w</code> and <code>b</code>.</>, <>Press <i>Next train step</i> a few times and watch the listed loss fall.</>],
+        steps: [<>Press ⏭ (jump to the end): the last steps update <code>w</code> and <code>b</code>.</>, <>Press <i>Next train step</i> a few times and watch the value in the <code>loss</code> box fall.</>],
       },
     ],
   },
@@ -249,7 +249,7 @@ export const BEGINNER: Lesson[] = [
     ],
     labs: [{
       preset: 'expression', hash: 'pass=reverse', label: 'Multiply along paths, add over paths',
-      steps: [<>Press → slowly. Each backward step shows the multiplication, e.g. <code>1.00 × 3.00 = 3.00</code>.</>, <>Watch <code>a</code>: it receives 1, then 3 more: “sum of 2 pieces”.</>],
+      steps: [<>Press ▶ (one step) slowly. Each backward step shows the multiplication, e.g. <code>1.00 × 3.00 = 3.00</code>.</>, <>Watch <code>a</code>: it receives 1, then 3 more: “sum of 2 pieces”.</>],
     }],
   },
 
@@ -301,7 +301,7 @@ export const BEGINNER: Lesson[] = [
     labs: [
       {
         preset: 'expression', hash: 'pass=reverse', label: 'Watch the sweep and the ready queue',
-        steps: [<>Press → until the backward steps start, and follow the <i>Backward order</i> panel: <code>c</code> becomes ready only after <code>d</code> has sent; <code>a</code> waits for 2 pieces.</>],
+        steps: [<>Press ▶ (one step) until the backward steps start, and follow the <i>Backward order</i> panel: <code>c</code> becomes ready only after <code>d</code> has sent; <code>a</code> waits for 2 pieces.</>],
       },
       {
         preset: 'mlp', hash: 'pass=reverse&zoom=scalar', label: 'A real network, one number at a time',

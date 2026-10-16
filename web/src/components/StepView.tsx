@@ -262,7 +262,7 @@ export function StepView(props: {
     setModes({ rows, passes, worst, truncated });
   };
 
-  if (!spec || !active || !highlight) return <div className="loading">Building the graph…</div>;
+  if (!spec || !active || !highlight) return <div className="loading" role="status" aria-label="Building the graph"><span /><span /><span /></div>;
 
   const step = highlight.step;
   const selNode = selected ? byId.get(selected) : undefined;
@@ -364,11 +364,13 @@ export function StepView(props: {
         </label>
       </div>
       <Dock>
+        <button onClick={() => go(0)} aria-label="Back to the start">⏮</button>
         <button onClick={() => go(cursor.index - 1)} disabled={cursor.index === 0} aria-label="One step back">◀</button>
         <button className="primary" onClick={() => setPlaying(!playing)} disabled={cursor.index >= cursor.length && !playing}>
           {playing ? 'Pause' : 'Play'}
         </button>
         <button onClick={() => go(cursor.index + 1)} disabled={cursor.index >= cursor.length} aria-label="One step forward">▶</button>
+        <button onClick={() => go(cursor.length)} aria-label="To the end">⏭</button>
         <span className="counter">{cursor.index} / {cursor.length}</span>
       </Dock>
     </div>

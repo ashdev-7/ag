@@ -134,7 +134,7 @@ export const ADVANCED: Lesson[] = [
     ],
     labs: [{
       preset: 'vanishing', label: 'Six sigmoid layers',
-      steps: [<>Press Run, then read ④ <i>How hard each layer is corrected</i>: the first layer (dark) gets thousands of times less than the output (orange).</>, <>Compare with the <i>Moons</i> lab, the same data with two tanh layers: there the layers stay within about 20× of each other, and the loss falls to near 0.</>],
+      steps: [<>Press Run, then read ④ <i>How hard each layer is corrected</i>: the first layer (violet) gets thousands of times less than the output layer (light orange).</>, <>Compare with the <a href="#preset=moons">Moons lab</a>, the same data with two tanh layers: there the layers stay within about 20× of each other, and the loss falls to near 0.</>],
     }],
   },
 

@@ -37,7 +37,7 @@ export const STEP_GUIDES: Record<string, Guide> = {
   expression: {
     idea: <>The smallest chain rule. With <code>a = 2</code>, <code>b = 3</code>: <code>c = a·b = 6</code>, <code>d = c + a = 8</code>. Here <code>d</code> plays the loss.</>,
     watch: [
-      <>Run Backward to the end: <code>∂d/∂b = 2</code> (that is <code>a</code>), <code>∂d/∂a = 4</code> (that is <code>b + 1</code>).</>,
+      <>Pick Backward and press ⏭ (jump to the end): <code>∂d/∂b = 2</code> (that is <code>a</code>), <code>∂d/∂a = 4</code> (that is <code>b + 1</code>).</>,
       <><code>a</code> is used twice, so its gradient arrives in two pieces, 1 and 3, that add up.</>,
     ],
   },
@@ -51,7 +51,7 @@ export const STEP_GUIDES: Record<string, Guide> = {
     idea: <>One neuron, <code>out = tanh(x·w + b)</code>, learning to output 0.5. The loss is <code>(out − 0.5)²</code>.</>,
     watch: [
       <>Backward: tanh scales the gradient by <code>1 − out²</code>; <code>w</code> gets <code>x</code> times that, <code>b</code> gets it as is.</>,
-      <>Switch to <i>Train step</i>, run to the end, and press <i>Next train step</i> a few times: the loss shrinks.</>,
+      <>Switch to <i>Train step</i>, press ⏭ (jump to the end), then <i>Next train step</i> a few times: the value in the <code>loss</code> box shrinks.</>,
     ],
   },
   broadcast: {
