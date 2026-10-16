@@ -1100,3 +1100,33 @@ ANSWERED
      repaired, and encoding.test.ts now fails on garbled text or BOMs.
   Test fixes: controls.ts waits for a step back to land, pauses a lab
   left playing, and allows 5 s for an action on a busy page.
+
+------------------------------------------------------------------------
+ENTRY 22   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  How good is the engine now against the original autograd-engine? Write
+  every change, including whether the PyTorch-like functions remain, to
+  autograd-vs-ag-updates. And add the protections suggested (security
+  headers, analytics, a licence).
+
+ANSWERED
+  1. autograd-vs-ag-updates.md (repository root). Measured today: same
+     network and batch, one training step 17,502 us in the original vs
+     57 us in ag (~300x); the original leaks 9 MB per step, ag stays flat;
+     the original overflows its stack on a 100,000-op chain and gives
+     wrong gradients on a second backward(). The Python Tensor interface
+     is gone; ag is instead checked against PyTorch (39 cases pass).
+     The original still builds and passes its 44 checks; it is unchanged.
+  2. web/vercel.json: Content-Security-Policy (scripts only from the site,
+     WebAssembly allowed, no framing), X-Frame-Options, nosniff, referrer
+     and permissions policies, COOP. scripts/serve.ts serves dist with
+     these headers: navigate passes 164/164 under them in Chromium,
+     Firefox and WebKit. With a policy that refuses WebAssembly
+     (CSP_NO_WASM=1) all three fall back to the JavaScript engine in the
+     worker and train. (The crippled-browser profiles inject blob: workers
+     and new Function, which the policy rightly blocks, so they keep
+     running on vite preview.) WebKit refuses port 4190, hence 4192.
+  3. Vercel Web Analytics loader in main.tsx, live hostname only. It needs
+     Analytics switched on in the Vercel dashboard (now 404).
+  4. LICENSE: all rights reserved, held by the GitHub handle ashdev-7.

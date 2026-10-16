@@ -1,0 +1,22 @@
+Copyright (c) 2026 ashdev-7 (https://github.com/ashdev-7). All rights reserved.
+
+This repository and everything in it (the engine, the website, its text,
+figures and recordings) is published so it can be read and the live site at
+https://ag-glass-box.vercel.app can be used. No other permission is granted:
+you may not copy, modify, redistribute, sublicense, sell, or host this code or
+any substantial part of it, or build a product or service from it, without
+prior written permission from the copyright holder.
+
+You may link to the site and the repository, and quote short excerpts with a
+link back, for commentary, review, teaching or research.
+
+The third-party libraries the site uses keep their own licences; see
+THIRD_PARTY_NOTICES.md.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -55,6 +55,7 @@ node scripts/navigate.ts webkit       # clicks every link, menu entry, variant a
 node scripts/instructions.ts webkit   # follows every lesson's and lab's instructions: what they name is on screen
 PART=0-5 node scripts/controls.ts webkit [phone]  # uses every control on labs 0-4 (PART=lessons: the lessons)
 node scripts/jank.ts                  # how long a tap waits while each lab trains, on an emulated phone
+node scripts/serve.ts                 # dist/ with the live site's security headers (vercel.json), on :4192
 npm run record            # regenerate the recorded runs in public/recordings
 node scripts/perf.ts      # frame times while training, racing and stepping (after build)
 ```
@@ -90,3 +91,10 @@ error names the node and input it is about.
 
 Ideas from micrograd, TensorFlow Playground, CNN Explainer, Transformer
 Explainer and Netron. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Licence
+
+All rights reserved; see [LICENSE](LICENSE). The libraries the site uses keep
+their own licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). How this
+engine differs from the original scalar engine it replaced:
+[autograd-vs-ag-updates.md](autograd-vs-ag-updates.md).
