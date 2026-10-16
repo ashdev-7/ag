@@ -157,6 +157,8 @@ try {
   const browser = await browserType.launch();
   console.log(`browser: ${browserName} ${browser.version()}  site: ${base}`);
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // a test run is not a visitor: on the live site, analytics gets a script that does nothing
+  await page.route('**/_vercel/insights/**', (r) => r.fulfill({ contentType: 'text/javascript', body: '' }));
   if (profile) {
     await page.addInitScript(cripple, profile.script);
     console.log(`profile ${process.env.PROFILE}: the engine should run in the ${profile.expect.replace(' ', ', ')} build`);
