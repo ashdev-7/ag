@@ -3,9 +3,7 @@
 // speed, and the page settles on the network and its decision boundary while
 // it learns; then the address. Frames come from the browser's screencast and
 // are encoded to H.264 by ffmpeg (pip install imageio-ffmpeg), the format X,
-// LinkedIn, Reddit and Product Hunt accept. The sound is made by
-// promo_audio.py from the moments recorded here, so every tap lands on its
-// click (needs numpy and scipy).
+// LinkedIn, Reddit and Product Hunt accept. No sound.
 //
 //   npm run build && node scripts/promo.ts out.mp4             1920x1080, a desktop and a cursor
 //   npm run build && node scripts/promo.ts out.mp4 vertical    1080x1920, a phone and a finger
@@ -90,10 +88,8 @@ const scrollTo = (page: Page, y: number, ms: number) => page.evaluate(([y1, ms])
 const pageY = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().top + scrollY);
 
 const frames: { data: Buffer; t: number }[] = [];
-// moments for the sound, in wall-clock seconds; made relative to the first frame below
-const moments = { splash: 0, taps: [] as number[], drag: [0, 0], train: [0, 0], card: 0 };
 const now = () => Date.now() / 1000;
-const press = async (page: Page) => { moments.taps.push(now()); await page.mouse.down(); await sleep(90); await page.mouse.up(); };
+const press = async (page: Page) => { await page.mouse.down(); await sleep(90); await page.mouse.up(); };
 
 try {
   for (let i = 0; i < 40; ++i) { try { if ((await fetch(base)).ok) break; } catch { /* not up yet */ } await sleep(250); }
@@ -115,7 +111,6 @@ try {
   // 0 s: the site opens on its splash
   await page.goto(base);
   await page.waitForSelector('.splash');
-  moments.splash = now();
   await page.mouse.move(mouse.x, mouse.y);
   // 3 s: the home page; the pointer appears, once the splash has fully gone
   await at(3.0);
@@ -137,16 +132,12 @@ try {
   await glide(page, r.x, r.y, 750);
   await at(6.1);
   await press(page);
-  moments.train[0] = now();
   // turn the speed up: drag the slider from 20 to 100 steps a second
   const slider = (await page.getByLabel('Training speed').boundingBox())!;
   await glide(page, slider.x + slider.width * (4 / 10), slider.y + slider.height / 2, 550);
-  moments.taps.push(now());
-  moments.drag[0] = now();
   await page.mouse.down();
   await glide(page, slider.x + slider.width * (6 / 10), slider.y + slider.height / 2, 600);
   await page.mouse.up();
-  moments.drag[1] = now();
 
   // the network and its decision boundary, while it learns
   await at(7.9);
@@ -164,8 +155,6 @@ try {
 
   // 13 s: the address, over the trained network
   await at(13.0);
-  moments.card = now();
-  moments.train[1] = now();
   await page.evaluate((vertical) => {
     const k = vertical ? 0.62 : 1;
     const card = document.createElement('div');
@@ -200,17 +189,8 @@ kept.forEach((f, i) => {
 list += `file 'f${String(kept.length - 1).padStart(5, '0')}.png'\n`;
 writeFileSync(join(dir, 'list.txt'), list);
 
-// the sound, from the same clock as the frames
-const rel = (t: number) => Math.round((t - t0) * 1000) / 1000;
-const events = {
-  duration: SECONDS, splash: rel(moments.splash), logo: rel(moments.splash) + 1.25,
-  taps: moments.taps.map(rel), drag: moments.drag.map(rel), train: moments.train.map(rel), card: rel(moments.card),
-};
-writeFileSync(join(dir, 'events.json'), JSON.stringify(events));
-execFileSync('python', [join(import.meta.dirname, 'promo_audio.py'), join(dir, 'events.json'), join(dir, 'sound.wav')], { stdio: 'inherit' });
-
-execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'list.txt'), '-i', join(dir, 'sound.wav'),
+execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(dir, 'list.txt'),
   '-vf', `fps=30,scale=${OUT_W}:${OUT_H}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '17',
-  '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-t', String(SECONDS), out], { cwd: dir, stdio: 'inherit' });
+  '-movflags', '+faststart', '-t', String(SECONDS), out], { cwd: dir, stdio: 'inherit' });
 rmSync(dir, { recursive: true, force: true });
-console.log(`${kept.length} frames, sound at ${JSON.stringify(events)} -> ${out}`);
+console.log(`${kept.length} frames -> ${out}`);
