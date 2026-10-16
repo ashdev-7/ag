@@ -20,7 +20,7 @@ export const MODE_SHORT: Record<PassKind, { name: string; line: ReactNode }> = {
 export const MODE_LONG = (lr: number): Record<PassKind, ReactNode> => ({
   forward: <>Each box computes its value from the boxes feeding it, until the last box gives the result: for a network, the <b>loss</b>.</>,
   reverse: <>From the result (∂ = 1), walk back along the arrows. Each arrow multiplies the gradient so far by the box’s <i>local slope</i> and adds it to the input’s gradient. That is the <b>chain rule</b>; the whole walk is <b>backpropagation</b>.</>,
-  train: <>Backward, then each parameter (violet) moves against its gradient: <code>w ← w − {lr} × ∂</code>. Press <i>Next train step</i> at the end to repeat and watch the loss fall.</>,
+  train: <>Backward, then each parameter (purple) moves against its gradient: <code>w ← w − {lr} × ∂</code>. Press <i>Next train step</i> at the end to repeat and watch the loss fall.</>,
   forwardMode: <>Nudge one input by 1 and carry the nudge (ṫ) forward with the values. What reaches the end is the gradient for that one input. One run per input, where Backward gets them all at once.</>,
 });
 

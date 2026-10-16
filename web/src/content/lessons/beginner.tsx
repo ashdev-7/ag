@@ -51,7 +51,7 @@ export const BEGINNER: Lesson[] = [
     ],
     labs: [{
       preset: 'neuron', hash: 'pass=forward', label: 'One neuron, forward',
-      steps: [<>Press ▶ (one step) to compute the boxes one at a time: <code>x·w</code>, then <code>z</code> (adds <code>b</code>), then <code>out</code> (the tanh of <code>z</code>).</>, <>The blue numbers are values. <code>w</code> and <code>b</code> (violet boxes) are the knobs; <code>x</code> (grey box) is the input.</>],
+      steps: [<>Press ▶ (one step) to compute the boxes one at a time: <code>x·w</code>, then <code>z</code> (adds <code>b</code>), then <code>out</code> (the tanh of <code>z</code>).</>, <>The blue numbers are values. <code>w</code> and <code>b</code> (purple boxes) are the knobs; <code>x</code> (grey box) is the input.</>],
     }],
   },
 

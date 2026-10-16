@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { OP_NAMES, SOURCES } from '../graph/spec.ts';
 import type { OpName } from '../graph/spec.ts';
 import { divergingScale, maxAbs, surfaceScale } from './draw.ts';
-import { BLUE, MID, ORANGE, SURFACE_HIGH } from './theme.ts';
 import { highlightAt, localDerivative, localDerivativeValue, OP_SYMBOL } from './graph.ts';
 
 // the forward rule of every op that has a single-number derivative
@@ -64,14 +63,14 @@ describe('every op is explained', () => {
 });
 
 describe('colour scales', () => {
-  it('diverging: the page’s dark at zero, blue and orange at ±max, magenta for nan', () => {
+  it('diverging: white at zero, the two ends at ±max, magenta for nan', () => {
     const s = divergingScale(2);
-    expect(s(0)).toEqual(MID);
-    expect(s(-2)).toEqual(BLUE);
-    expect(s(2)).toEqual(ORANGE);
+    expect(s(0)).toEqual([247, 247, 247]);
+    expect(s(-2)).toEqual([33, 102, 172]);
+    expect(s(2)).toEqual([230, 97, 1]);
     expect(s(5)).toEqual(s(2));   // clamped
     expect(s(NaN)).toEqual([200, 0, 200]);
-    expect(divergingScale(0)(0)).toEqual(MID);   // an all-zero tensor still draws
+    expect(divergingScale(0)(0)).toEqual([247, 247, 247]);   // an all-zero tensor still draws
   });
 
   it('surface: darkest at the minimum, lighter as the loss rises', () => {
@@ -79,7 +78,7 @@ describe('colour scales', () => {
     const light = (v: number) => s(v).reduce((a, b) => a + b, 0);
     expect(light(0)).toBeLessThan(light(1));
     expect(light(1)).toBeLessThan(light(100));
-    expect(s(Infinity)).toEqual(SURFACE_HIGH);
+    expect(s(Infinity)).toEqual([250, 250, 252]);
   });
 
   it('maxAbs skips non-finite values', () => {

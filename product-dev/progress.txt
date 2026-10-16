@@ -1054,3 +1054,19 @@ ANSWERED
      1411 controls, 0 failures in Chromium and Firefox; WebKit all but
      the mlp lab (run stopped for low memory). Phone runs not done yet.
      Smoke, navigate (164 pages) and instructions pass in all three.
+
+------------------------------------------------------------------------
+ENTRY 20   2026-10-16
+------------------------------------------------------------------------
+ASKED
+  The dark theme is tasteless: revert exactly to the colours from before.
+
+ANSWERED
+  Restored from 2e0378f: styles.css, draw.ts, Splash, widgets,
+  NeuronDiagram, og.ts and og.png, index.html, the colour tests; the
+  colours in RaceView, TrainView and GraphCanvas; colour words in the
+  lessons ("purple", "dark", "orange"). views/theme.ts removed. Kept: the
+  readable graph camera, wheel scrolls the page, ⏮ ⏭ in the phone dock,
+  m and v labels, the loaders (three dots holding the page height),
+  Recover, and box names staying readable before the pass reaches them.
+  Smoke and instructions (79/79) pass in Chromium; 71 unit tests pass.

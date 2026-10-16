@@ -4,9 +4,8 @@
 import { useState } from 'react';
 import { fmt } from '../views/draw.ts';
 import { Canvas } from './Canvas.tsx';
-import { AXIS, BLUE as B, hex, INK as THEME_INK, ORANGE as O } from '../views/theme.ts';
 
-const BLUE = hex(B), ORANGE = hex(O), INK = THEME_INK, GRID = AXIS;
+const BLUE = '#2166ac', ORANGE = '#e66101', INK = '#1d1d1f', GRID = '#e4e4ea';
 
 interface Box { x0: number; x1: number; y0: number; y1: number }
 

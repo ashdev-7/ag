@@ -11,7 +11,6 @@ import type { Dataset, EngineError, Frame, Grid, OptimConfig, Stats } from '../e
 import type { Preset } from '../graph/presets.ts';
 import { divergingScale, drawField, drawHistogram, drawLines, drawPoints, drawTensor, fmt, layerColor, maxAbs, PALETTE } from '../views/draw.ts';
 import type { Series } from '../views/draw.ts';
-import { BLUE, hex, MID, ORANGE, RED, VIOLET } from '../views/theme.ts';
 import type { Highlight, UrlState } from '../views/graph.ts';
 import { Canvas } from './Canvas.tsx';
 import { describe } from './ErrorBanner.tsx';
@@ -436,9 +435,9 @@ export function TrainView(props: {
               ))}
             </div>
             <div className="key">
-              <span><i style={{ background: hex(ORANGE) }} />says orange</span>
-              <span><i style={{ background: hex(BLUE) }} />says blue</span>
-              <span><i style={{ background: hex(MID), border: '1px solid rgba(148,170,220,0.4)' }} />unsure</span>
+              <span><i style={{ background: '#e66101' }} />says orange</span>
+              <span><i style={{ background: '#2166ac' }} />says blue</span>
+              <span><i style={{ background: '#f7f7f7', border: '1px solid #ccc' }} />unsure</span>
               <span><i className="dot" />a real dot</span>
             </div>
             {filmstrip}
@@ -476,7 +475,7 @@ export function TrainView(props: {
               return (
                 <div key={l.label} className="hist">
                   <div className="muted">{l.label}{s ? ` · ${Math.round(s.fracZero * 100)}% zero` : ''}</div>
-                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? RED : VIOLET)} />}
+                  {s && <Canvas height={84} draw={(ctx, w, h) => drawHistogram(ctx, w, h, s, s.fracZero > 0.9 ? '#c0392b' : '#7a5bb5')} />}
                 </div>
               );
             })}

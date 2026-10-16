@@ -9,7 +9,6 @@ import type { Session } from '../engine/client.ts';
 import type { Preset } from '../graph/presets.ts';
 import { divergingScale, drawField, fit, fmt } from '../views/draw.ts';
 import { Canvas } from './Canvas.tsx';
-import { BLUE, INK_2, MUTED, ORANGE } from '../views/theme.ts';
 import type { ColorScale } from '../views/draw.ts';
 
 export interface NeuronState {
@@ -47,7 +46,7 @@ export async function fetchNeurons(s: Session, preset: Preset, domain: { x0: num
 interface Box { x: number; y: number; s: number; layer: number; index: number }
 interface Line { x1: number; y1: number; x2: number; y2: number; layer: number; from: number; to: number; w: number }
 
-const POS = ORANGE.join(','), NEG = BLUE.join(',');
+const POS = '230,97,1', NEG = '33,102,172';
 
 function drawCell(ctx: CanvasRenderingContext2D, data: ArrayLike<number>, res: number, scale: ColorScale, b: Box) {
   const tmp = document.createElement('canvas');
@@ -134,7 +133,7 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
         } else {
           drawCell(ctx, normalised(acts[b.layer - 1], state.grids[b.layer - 1][b.index]), state.res, divergingScale(1), b);
         }
-        ctx.strokeStyle = 'rgba(148,170,220,0.45)';
+        ctx.strokeStyle = '#999';
         ctx.lineWidth = 1;
         ctx.strokeRect(b.x, b.y, b.s, b.s);
       });
@@ -145,19 +144,19 @@ export function NeuronDiagram(props: { preset: Preset; state: NeuronState | null
         const half = ctx.measureText(text).width / 2;
         ctx.fillText(text, Math.min(w - half - 2, Math.max(half + 2, colX(k) + s / 2)), y);
       };
-      ctx.fillStyle = MUTED;
+      ctx.fillStyle = '#8b8b98';
       ctx.font = '500 11px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
       titles.forEach((t, k) => label(fitting(t), k, 12));
       // what each column does, under it
-      ctx.fillStyle = INK_2;
+      ctx.fillStyle = '#3d3d48';
       ctx.font = '500 11.5px Inter, system-ui, sans-serif';
       sizes.forEach((_, k) => {
         const what = k === 0 ? ['the dot’s position', 'position'] : k === cols - 1 ? ['the answer', 'answer']
           : k === 1 ? ['learn simple shapes', 'simple shapes', 'shapes'] : ['combine them', 'combine'];
         label(fitting(what), k, h - 8);
       });
-      ctx.fillStyle = MUTED;
+      ctx.fillStyle = '#8b8b98';
       ctx.font = '500 11px Inter, system-ui, sans-serif';
       // name the inputs and outputs
       ctx.textAlign = 'left';

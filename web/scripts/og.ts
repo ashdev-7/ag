@@ -57,32 +57,27 @@ try {
 
 function card(png: string) {
   return `<!doctype html><html><head>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; }
-  body { width: 1200px; height: 630px; font-family: Inter, sans-serif; color: #e8eef9; background-color: #070b14;
-         background-image: radial-gradient(700px 420px at 78% 10%, rgba(139,123,255,0.28), transparent 65%),
-           radial-gradient(600px 400px at 0% 100%, rgba(77,163,255,0.14), transparent 60%),
-           linear-gradient(rgba(148,170,220,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(148,170,220,0.05) 1px, transparent 1px);
-         background-size: auto, auto, 44px 44px, 44px 44px;
+  body { width: 1200px; height: 630px; font-family: Inter, sans-serif; background: #f6f6f8; color: #15151a;
          display: grid; grid-template-columns: 1fr 470px; gap: 56px; align-items: center; padding: 0 72px;
          -webkit-font-smoothing: antialiased; position: relative; overflow: hidden; }
-  .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 16px; letter-spacing: 0.22em; text-transform: uppercase; color: #5be9ff; }
-  .brand { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: -0.03em; margin-top: 16px; }
-  .brand span { color: #b3a8ff; font-weight: 500; }
-  h1 { font-family: 'Space Grotesk', sans-serif; font-size: 70px; line-height: 1.0; letter-spacing: -0.045em; font-weight: 700; margin: 26px 0 22px; }
-  h1 span { background: linear-gradient(92deg, #5be9ff, #b3a8ff 55%, #f5bcd9); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  p { font-size: 24px; line-height: 1.45; color: #a3b0c7; max-width: 540px; }
-  .tags { display: flex; gap: 10px; margin-top: 30px; }
-  .tags b { font-weight: 500; font-size: 17px; color: #d6d0ff; background: rgba(139,123,255,0.14); border: 1px solid rgba(139,123,255,0.35); padding: 7px 14px; border-radius: 999px; }
-  .pic { background: rgba(16,22,38,0.8); border: 1px solid rgba(148,170,220,0.18); border-radius: 22px; padding: 18px;
-         box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 60px rgba(139,123,255,0.22); }
+  body::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 8px; background: #5e3c99; }
+  .brand { font-weight: 700; font-size: 30px; letter-spacing: -0.03em; }
+  .brand span { color: #5e3c99; font-weight: 500; }
+  h1 { font-size: 64px; line-height: 1.04; letter-spacing: -0.035em; font-weight: 700; margin: 34px 0 24px; }
+  h1 span { color: #5e3c99; }
+  p { font-size: 25px; line-height: 1.45; color: #4b4b57; max-width: 540px; }
+  .tags { display: flex; gap: 10px; margin-top: 34px; }
+  .tags b { font-weight: 500; font-size: 18px; color: #5e3c99; background: #f1ecf9; padding: 7px 14px; border-radius: 999px; }
+  .pic { background: #fff; border: 1px solid #e8e8ee; border-radius: 22px; padding: 20px;
+         box-shadow: 0 20px 50px rgba(40, 30, 80, 0.10), 0 2px 6px rgba(40, 30, 80, 0.05); }
   .crop { overflow: hidden; border-radius: 12px; }
   .crop img { display: block; width: 100%; transform: scale(1.28); }   /* the spirals fill the middle */
-  .cap { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7890; margin-top: 14px; padding: 0 4px; }
+  .cap { display: flex; justify-content: space-between; font-size: 16px; color: #8b8b98; margin-top: 14px; padding: 0 4px; }
 </style></head><body>
   <div>
-    <div class="eyebrow">A course you can watch</div>
     <div class="brand">ag<span>·glass</span></div>
     <h1>See <span>inside</span> a neural network</h1>
     <p>Every number a network computes, and every gradient it sends back, drawn live in your browser.</p>
@@ -90,7 +85,7 @@ function card(png: string) {
   </div>
   <div class="pic">
     <div class="crop"><img src="data:image/png;base64,${png}"></div>
-    <div class="cap"><span>Two spirals · a real network</span><span>trained live</span></div>
+    <div class="cap"><span>A real network separating two spirals</span><span>trained live</span></div>
   </div>
 </body></html>`;
 }

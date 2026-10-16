@@ -198,7 +198,7 @@ function Inner(props: GraphCanvasProps & { vertical: boolean; touch: boolean }) 
       zoomOnDoubleClick={!phone}
       preventScrolling={false}
     >
-      <Background gap={22} size={1.2} color="rgba(148,170,220,0.16)" />
+      <Background gap={20} color="#eee" />
       {!phone && <Controls showInteractive={false} />}
     </ReactFlow>
     </div>
